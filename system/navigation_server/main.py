@@ -73,6 +73,7 @@ def main():
         log.info("Video preview ON (window: %r, press Q to quit)", cfg.preview_window_title)
 
     vehicle_id_map = {mid: f"vehicle_{mid}" for mid in cfg.mobile_marker_ids}
+    log.info("Tracking %d mobile marker(s): %s", len(vehicle_id_map), list(vehicle_id_map.values()))
     preview_disabled = False
 
     try:

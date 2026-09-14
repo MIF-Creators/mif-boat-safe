@@ -100,10 +100,15 @@ canvas#mapCanvas {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 0;
+    padding: 6px 6px;
     border-bottom: 1px solid rgba(255,255,255,0.04);
     font-size: .85rem;
+    cursor: pointer;
+    border-radius: var(--radius);
+    transition: background .1s;
 }
+.vehicle-item:hover { background: rgba(255,255,255,0.04); }
+.vehicle-item.selected { background: rgba(0,210,255,0.1); }
 .vehicle-item .dot {
     width: 8px; height: 8px; border-radius: 50%;
     flex-shrink: 0;

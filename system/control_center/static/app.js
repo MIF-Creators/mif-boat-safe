@@ -235,6 +235,12 @@ canvas.addEventListener("click", (e) => {
 // ---------------------------------------------------------------------------
 
 function updateSidebar() {
+    // auto-select first available vehicle if current selection is gone
+    const vehicleIds = Object.keys(positions);
+    if (vehicleIds.length > 0 && !positions[selectedVehicle]) {
+        selectedVehicle = vehicleIds[0];
+    }
+
     // vehicles
     const vList = $("#vehicleList");
     let html = "";
@@ -244,7 +250,7 @@ function updateSidebar() {
         const dotColor = state === "executing" ? "var(--accent2)" :
                          state === "idle" ? "var(--success)" :
                          state === "paused" ? "var(--warning)" : "var(--text-dim)";
-        html += `<div class="vehicle-item" onclick="window._selectVehicle('${vid}')">
+        html += `<div class="vehicle-item${vid === selectedVehicle ? ' selected' : ''}" onclick="window._selectVehicle('${vid}')">
             <span class="dot" style="background:${dotColor}"></span>
             <span class="vid">${vid}</span>
             <span class="coords">(${pos.x.toFixed(1)}, ${pos.y.toFixed(1)})</span>
