@@ -55,8 +55,7 @@ class MqttConfig:
 
 @dataclass
 class ControlCenterConfig(MqttConfig):
-    # Remote operator access requires listening on network interfaces.
-    flask_host: str = "0.0.0.0"  # nosec B104
+    flask_host: str = "127.0.0.1"
     flask_port: int = 8080
     vehicle_ids: list[str] = field(default_factory=lambda: ["vehicle_0"])
 
@@ -66,8 +65,7 @@ class ControlCenterConfig(MqttConfig):
         return cls(
             broker_host=os.getenv("MQTT_BROKER_HOST", "127.0.0.1"),
             broker_port=int(os.getenv("MQTT_BROKER_PORT", "1883")),
-            # Same network-access default as the dataclass field.
-            flask_host=os.getenv("FLASK_HOST", "0.0.0.0"),  # nosec B104
+            flask_host=os.getenv("FLASK_HOST", "127.0.0.1"),
             flask_port=int(os.getenv("FLASK_PORT", "8080")),
             vehicle_ids=_csv_list(os.getenv("VEHICLE_IDS", "vehicle_0")),
         )
