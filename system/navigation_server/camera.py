@@ -69,12 +69,13 @@ class CameraManager:
         try:
             cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         except Exception:
-            pass
+            log.warning("RTSP: failed to set capture buffer size")
+
         try:
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         except Exception:
-            pass
+            log.warning("RTSP: failed to set frame dimensions")
 
         # Warm-up: first read often succeeds while follow-ups fail without draining / TCP.
         ok = False
