@@ -3,4 +3,6 @@ python-dotenv>=1.0.0
 flask>=2.3.0
 opencv-python>=4.8.0
 numpy>=1.24.0
+pytest>=8.0.0
+pytest-cov>=5.0.0
 # RPi.GPIO>=0.7.0  # uncomment on Raspberry Pi

@@ -124,6 +124,10 @@ Open browser: `http://localhost:8080`
 
 Each component reads settings from a `.env` file next to that component’s `main.py` (for example `system/navigation_server/.env`). You can run `python -m system.navigation_server.main` from the repo root; the correct file is still loaded. Values in `.env` override the same variables if they were set in the shell. See `.env.example` files for available options.
 
+**Navigation server — RTSP IP camera:** set `CAMERA_RTSP_URL=rtsp://...` in `.env`. The server loads `.env` before OpenCV so FFmpeg can use TCP (`CAMERA_RTSP_TCP=1`, default). If the stream stops after ~1 minute, the server reconnects automatically after `CAMERA_RTSP_RECONNECT_AFTER` failed reads (default 5). If problems persist, try `CAMERA_RTSP_TCP=0` (UDP).
+
+**Video preview window:** with `SHOW_VIDEO_PREVIEW=1` (default), a window opens showing the stream with ArUco overlays; press **Q** to stop the server. Set `SHOW_VIDEO_PREVIEW=0` on machines without a display.
+
 ## Adding More Vehicles
 
 1. Place a new ArUco marker (e.g., ID 5) on the vehicle.
