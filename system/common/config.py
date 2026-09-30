@@ -77,12 +77,16 @@ class NavigationServerConfig(MqttConfig):
     camera_width: int = 1280
     camera_height: int = 720
     camera_skip_devices: list[str] = field(default_factory=list)
+    camera_autofocus: int | None = None  # None = don't touch; 0 = off, 1 = on
+    camera_focus: float | None = None    # manual focus value (V4L2 only)
     reference_marker_ids: list[int] = field(default_factory=lambda: [1, 2, 3, 4])
     mobile_marker_ids: list[int] = field(default_factory=lambda: [0])
     map_width: int = 100
     map_height: int = 100
     map_obstacles: list[dict] = field(default_factory=list)
     publish_rate_hz: int = 15
+    show_video_preview: bool = True
+    preview_window_title: str = "Navigation Server"
 
     @classmethod
     def load(cls, env_path: str | Path | None = None) -> "NavigationServerConfig":
@@ -96,6 +100,18 @@ class NavigationServerConfig(MqttConfig):
         skip_raw = os.getenv("CAMERA_SKIP_DEVICES", "")
         skip = _csv_list(skip_raw) if skip_raw else []
 
+        autofocus_raw = os.getenv("CAMERA_AUTOFOCUS", "").strip()
+        camera_autofocus = int(autofocus_raw) if autofocus_raw in ("0", "1") else None
+
+        focus_raw = os.getenv("CAMERA_FOCUS", "").strip()
+        camera_focus = float(focus_raw) if focus_raw else None
+
+        rtsp_raw = os.getenv("CAMERA_RTSP_URL", "").strip()
+        camera_rtsp_url = rtsp_raw if rtsp_raw else None
+
+        preview_raw = os.getenv("SHOW_VIDEO_PREVIEW", "1").strip().lower()
+        show_video_preview = preview_raw in ("1", "true", "yes", "on")
+
         return cls(
             broker_host=os.getenv("MQTT_BROKER_HOST", "192.168.1.100"),
             broker_port=int(os.getenv("MQTT_BROKER_PORT", "1883")),
@@ -103,12 +119,16 @@ class NavigationServerConfig(MqttConfig):
             camera_width=int(os.getenv("CAMERA_WIDTH", "1280")),
             camera_height=int(os.getenv("CAMERA_HEIGHT", "720")),
             camera_skip_devices=skip,
+            camera_autofocus=camera_autofocus,
+            camera_focus=camera_focus,
             reference_marker_ids=_csv_int_list(os.getenv("REFERENCE_MARKER_IDS", "1,2,3,4")),
             mobile_marker_ids=_csv_int_list(os.getenv("MOBILE_MARKER_IDS", "0")),
             map_width=int(os.getenv("MAP_WIDTH", "100")),
             map_height=int(os.getenv("MAP_HEIGHT", "100")),
             map_obstacles=obstacles,
             publish_rate_hz=int(os.getenv("PUBLISH_RATE_HZ", "15")),
+            show_video_preview=show_video_preview,
+            preview_window_title=os.getenv("PREVIEW_WINDOW_TITLE", "Navigation Server"),
         )
 
 
