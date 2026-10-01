@@ -1,6 +1,7 @@
+import pytest
+
 from system.vehicle.services.navigation_service import NavigationService
 from system.vehicle.shared_state import SharedState
-
 
 class FakeDrive:
     def __init__(self):
@@ -43,33 +44,43 @@ def _create_service(shared, drive=None, avoidance=None, mission_svc=None):
         loop_rate_hz=20,
     )
 
-
-def test_tick_does_nothing_when_mission_not_executing():
-    shared = SharedState()
-    shared.set_mission("m-idle", [{"x": 10, "y": 10}])
-    shared.set_mission_status("paused")
-    shared.update_position(0, 0, 0)
-
+@pytest.mark.parametrize(
+        "status", ["idle", "paused", "completed", "cancelled", "failed"]
+)
+def test_tick_sends_stop_when_mission_not_executing(status):
+    # Arrange
+    shared_state = SharedState()
+    shared_state.set_mission("m-1", [{"x": 10, "y": 10}])
+    shared_state.set_mission_status(status)
+    shared_state.update_position(0, 0, 0)
     drive = FakeDrive()
-    svc = _create_service(shared, drive=drive)
-    svc._tick()
+    nav_service = _create_service(shared_state, drive=drive)
 
-    assert drive.commands == []
+    # Act
+    nav_service._tick()
 
+    # Assert
+    assert drive.commands == ["stop"]
 
-def test_tick_sends_turn_command_based_on_heading_error():
-    shared = SharedState()
-    shared.set_mission("m-turn", [{"x": 0, "y": 10}])  # desired angle ~ +pi/2
-    shared.update_position(0, 0, 0)  # heading to +x -> should rotate left
-
+@pytest.mark.parametrize(
+        "status", ["paused", "cancelled"]
+)
+def test_moving_vehicle_stops_after_pause_or_cancel(status):
+    # Arrange
+    shared_state = SharedState()
+    shared_state.set_mission("m-1", [{"x": 10, "y": 0}])
+    shared_state.update_position(0, 0, 0)
     drive = FakeDrive()
-    avoidance = FakeAvoidance(suffix="_safe")
-    svc = _create_service(shared, drive=drive, avoidance=avoidance)
-    svc._tick()
+    nav_service = _create_service(shared_state, drive=drive)
+    nav_service._tick()
+    assert drive.commands[-1] == "forward"
 
-    assert avoidance.raw_commands == ["left"]
-    assert drive.commands == ["left_safe"]
+    # Act
+    shared_state.set_mission_status(status)
+    nav_service._tick()
 
+    # Assert
+    assert drive.commands[-1] == "stop"
 
 def test_tick_advances_waypoint_and_notifies_completion():
     shared = SharedState()

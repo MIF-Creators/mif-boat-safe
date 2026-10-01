@@ -61,6 +61,7 @@ class NavigationService:
     def _tick(self):
         mission = self._shared.get_mission()
         if mission.status != "executing":
+            self._drive.send_command("stop")
             return
 
         wp = self._shared.get_current_waypoint()
