@@ -44,15 +44,21 @@ LOOP_PERIOD = 0.02  # seconds between watchdog checks
 class DriveService:
     """Consumes drive commands from a thread-safe queue and actuates motors."""
 
-    def __init__(self, command_timeout: float = 0.5, clock: Callable[[], float] = time.monotonic):
-            self._timeout = command_timeout
-            self._clock = clock
-            self._command = "stop"
-            self._applied_command: str | None = None
-            self._last_command_time = clock()
-            self._lock = threading.Lock()
-            self._thread: threading.Thread | None = None
-            self._running = False
+    def __init__(self,
+                 duty_cycle: int = 20,
+                 command_timeout: float = 0.5,
+                 clock: Callable[[], float] = time.monotonic):
+        self._duty = duty_cycle
+        self._timeout = command_timeout
+        self._clock = clock
+        self._command = "stop"
+        self._applied_command: str | None = None
+        self._last_command_time = clock()
+        self._lock = threading.Lock()
+        self._thread: threading.Thread | None = None
+        self._running = False
+        self._pwm_l = None
+        self._pwm_r = None
     
     def start(self):
         self._init_gpio()
