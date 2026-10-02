@@ -70,6 +70,7 @@ class NavigationService:
 
         pos = self._shared.get_position()
         if not pos.valid:
+            self._drive.send_command("stop")
             return
 
         target_x = wp["x"]

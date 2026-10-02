@@ -141,6 +141,7 @@ class VehicleConfig(MqttConfig):
     nav_loop_rate_hz: int = 10
     pwm_duty_cycle: int = 20
     drive_command_timeout: float = 0.5
+    position_timeout: float = 1.0
 
     @classmethod
     def load(cls, env_path: str | Path | None = None) -> "VehicleConfig":
@@ -155,4 +156,5 @@ class VehicleConfig(MqttConfig):
             nav_loop_rate_hz=int(os.getenv("NAV_LOOP_RATE_HZ", "10")),
             pwm_duty_cycle=int(os.getenv("PWM_DUTY_CYCLE", "20")),
             drive_command_timeout=float(os.getenv("DRIVE_COMMAND_TIMEOUT", "0.5")),
+            position_timeout=float(os.getenv("POSITION_TIMEOUT", "1.0"))
         )

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import threading
 from dataclasses import dataclass, field
-
+import time
+from typing import Callable
 
 @dataclass
 class Position:
@@ -33,9 +34,14 @@ class MissionState:
 class SharedState:
     """Centralised state shared across all vehicle service threads."""
 
-    def __init__(self):
+    def __init__(self,
+                 position_timeout: float = 1.0,
+                 clock: Callable[[], float] = time.monotonic):
+        self._clock = clock
+        self._position_timeout = position_timeout
         self._lock = threading.Lock()
         self._position = Position()
+        self._position_time: float | None = None
         self._neighbors: list[NeighborPosition] = []
         self._mission = MissionState()
 
@@ -46,15 +52,20 @@ class SharedState:
             self._position.x = x
             self._position.y = y
             self._position.rotation = rotation
-            self._position.valid = True
+            self._position_time = self._clock()
 
     def get_position(self) -> Position:
         with self._lock:
+            is_valid = (
+                self._position_time is not None
+                and self._clock() - self._position_time <= self._position_timeout
+            )
+
             return Position(
                 x=self._position.x,
                 y=self._position.y,
                 rotation=self._position.rotation,
-                valid=self._position.valid,
+                valid=is_valid,
             )
 
     # -- neighbors ---------------------------------------------------------

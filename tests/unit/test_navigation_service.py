@@ -2,6 +2,7 @@ import pytest
 
 from system.vehicle.services.navigation_service import NavigationService
 from system.vehicle.shared_state import SharedState
+from tests.unit.fakes import FakeClock
 
 class FakeDrive:
     def __init__(self):
@@ -97,14 +98,33 @@ def test_tick_advances_waypoint_and_notifies_completion():
     # "action=stop" and completion branch both request stop
     assert drive.commands.count("stop") >= 1
 
-
-def test_tick_skips_when_position_invalid():
-    shared = SharedState()
-    shared.set_mission("m-invalid-pos", [{"x": 5, "y": 5}])
-    # position.valid remains False by default
+def test_tick_sends_stop_when_position_never_received():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"x": 5, "y": 5}])
     drive = FakeDrive()
-    svc = _create_service(shared, drive=drive)
+    service = _create_service(state, drive=drive)
 
-    svc._tick()
+    # Act
+    service._tick()
 
-    assert drive.commands == []
+    # Assert
+    assert drive.commands == ["stop"]
+
+def test_moving_vehicle_stops_when_position_becomes_stale():
+    # Arrange
+    clock = FakeClock()
+    state = SharedState(position_timeout=1.0, clock=clock)
+    state.set_mission("m-1", [{"x": 10, "y": 0}])
+    state.update_position(0, 0, 0)
+    drive = FakeDrive()
+    service = _create_service(state, drive=drive)
+    service._tick()
+    assert drive.commands[-1] == "forward"
+
+    # Act
+    clock.advance(1.5)
+    service._tick()
+
+    # Assert
+    assert drive.commands[-1] == "stop"
