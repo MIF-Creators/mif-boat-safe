@@ -1,4 +1,7 @@
-"""Motor control service – reads commands from a queue and drives GPIO.
+"""Motor control service – applies the latest drive command to GPIO.
+
+If no new command arrives within the timeout, the motors are stopped
+(watchdog), so a crashed or frozen navigation loop cannot leave them running.
 
 Pin layout and motor functions taken directly from LocalNavigation/machine.py.
 On non-Raspberry Pi systems a mock GPIO is used so the rest of the stack can
@@ -8,9 +11,9 @@ be developed and tested without hardware.
 from __future__ import annotations
 
 import logging
-import queue
 import threading
 import time
+from typing import Callable
 
 log = logging.getLogger(__name__)
 
@@ -36,49 +39,64 @@ BIN2_R = 37
 
 PWM_FREQ = 255
 
+LOOP_PERIOD = 0.02  # seconds between watchdog checks
 
 class DriveService:
     """Consumes drive commands from a thread-safe queue and actuates motors."""
 
-    def __init__(self, duty_cycle: int = 20):
-        self._duty = duty_cycle
-        self._cmd_queue: queue.Queue[str] = queue.Queue(maxsize=32)
-        self._thread: threading.Thread | None = None
-        self._running = False
-        self._pwm_l = None
-        self._pwm_r = None
-
+    def __init__(self, command_timeout: float = 0.5, clock: Callable[[], float] = time.monotonic):
+            self._timeout = command_timeout
+            self._clock = clock
+            self._command = "stop"
+            self._applied_command: str | None = None
+            self._last_command_time = clock()
+            self._lock = threading.Lock()
+            self._thread: threading.Thread | None = None
+            self._running = False
+    
     def start(self):
         self._init_gpio()
-        self._running = True
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="DriveService")
+        self._thread = threading.Thread(target=self._loop, daemon=True, name=self.__class__.__name__)
         self._thread.start()
-        log.info("DriveService started (GPIO=%s, duty=%d)", _HAS_GPIO, self._duty)
+        self._running = True
+        log.info(
+            "DriveService started (GPIO=%s, duty=%d, timeout=%.2fs)",
+            _HAS_GPIO, self._duty, self._timeout
+        )
 
     def send_command(self, command: str):
-        """Push a command: 'forward', 'backward', 'left', 'right', 'stop'."""
-        try:
-            self._cmd_queue.put_nowait(command)
-        except queue.Full:
-            pass
+        with self._lock:
+            self._command = command
+            self._last_command_time = self._clock()
 
     def stop(self):
         self._running = False
-        self.send_command("stop")
         if self._thread:
             self._thread.join(timeout=2)
+        self._execute("stop")
         self._cleanup_gpio()
-
-    # -- internal ----------------------------------------------------------
 
     def _loop(self):
         while self._running:
-            try:
-                cmd = self._cmd_queue.get(timeout=0.5)
-            except queue.Empty:
-                continue
-            self._execute(cmd)
+            self._step()
+            time.sleep(LOOP_PERIOD)
 
+    def _step(self):
+        with self._lock:
+            command = self._command
+            is_expired = self._clock() - self._last_command_time > self._timeout
+
+        target = "stop" if is_expired else command
+
+        if target == self._applied_command:
+            return
+
+        if is_expired:
+            log.warning("No drive commands for %.2fs, stopping motors", self._timeout)
+
+        self._execute(target)
+        self._applied_command = target
+    
     def _execute(self, cmd: str):
         self._motor_left("stop")
         self._motor_right("stop")

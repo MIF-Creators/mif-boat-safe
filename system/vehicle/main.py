@@ -36,7 +36,7 @@ def main():
 
     position_svc = PositionService(cfg.vehicle_id, shared, mqtt)
     mission_svc = MissionService(cfg.vehicle_id, shared, mqtt)
-    drive_svc = DriveService(duty_cycle=cfg.pwm_duty_cycle)
+    drive_svc = DriveService(duty_cycle=cfg.pwm_duty_cycle, command_timeout=cfg.drive_command_timeout)
     obstacle_det = ObstacleDetectionService(shared)
     obstacle_avoid = ObstacleAvoidanceService(obstacle_det)
     nav_svc = NavigationService(
