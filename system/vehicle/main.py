@@ -28,7 +28,7 @@ def main():
     cfg = VehicleConfig.load(env_path=component_dotenv_path(__file__))
     log.info("Vehicle ID: %s  (ArUco marker %d)", cfg.vehicle_id, cfg.aruco_marker_id)
 
-    shared = SharedState()
+    shared = SharedState(position_timeout=cfg.position_timeout)
 
     mqtt = VehicleMqttClient(cfg)
     mqtt.connect()
