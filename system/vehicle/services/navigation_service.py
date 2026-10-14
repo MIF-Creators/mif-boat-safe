@@ -37,6 +37,7 @@ class NavigationService:
         self._dt = 1.0 / loop_rate_hz
         self._thread: threading.Thread | None = None
         self._running = False
+        self._tick_failing = False
 
     def start(self):
         self._running = True
@@ -52,11 +53,26 @@ class NavigationService:
     def _loop(self):
         while self._running:
             t0 = time.time()
-            self._tick()
+            self._safe_tick()
             elapsed = time.time() - t0
             remaining = self._dt - elapsed
             if remaining > 0:
                 time.sleep(remaining)
+
+    def _safe_tick(self):
+        try:
+            self._tick()
+        except Exception:
+            self._drive.send_command("stop")
+            if not self._tick_failing:
+                log.exception("Navigation tick failed, stopping motors")
+                self._tick_failing = True
+            return
+
+        if self._tick_failing:
+            log.info("Navigation recovered after error")
+            self._tick_failing = False
+    
 
     def _tick(self):
         mission = self._shared.get_mission()
