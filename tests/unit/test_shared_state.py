@@ -1,3 +1,4 @@
+import pytest
 import threading
 
 from system.vehicle.shared_state import SharedState
@@ -106,3 +107,91 @@ def test_thread_safety_smoke_for_reads_and_writes():
 
     # No exceptions + state remains coherent
     assert shared.get_mission().mission_id == "m-thread"
+
+
+def test_no_wait_by_default():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"x": 1, "y": 2}])
+
+    # Assert
+    assert state.wait_remaining() is None
+    assert state.get_mission().wait_until is None
+
+def test_wait_remaining_counts_down():
+    # Arrange
+    clock = FakeClock()
+    state = SharedState(clock=clock)
+    state.set_mission("m-1", [{"x": 1, "y": 2}])
+
+    # Act
+    state.start_wait(5.0)
+    clock.advance(2.0)
+
+    # Assert
+    assert state.wait_remaining() == 3.0
+    assert state.get_mission().wait_until == 5.0
+
+def test_wait_remaining_is_not_positive_after_duration():
+    # Arrange
+    clock = FakeClock()
+    state = SharedState(clock=clock)
+    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.start_wait(5.0)
+
+    # Act
+    clock.advance(6.0)
+
+    # Assert
+    assert state.wait_remaining() <= 0
+
+def test_new_mission_resets_wait():
+    # Arrange
+    state = SharedState(clock=FakeClock())
+    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.start_wait(5.0)
+
+    # Act
+    state.set_mission("m-2", [{"x": 3, "y": 4}])
+
+    # Assert
+    assert state.wait_remaining() is None
+
+def test_advance_waypoint_resets_wait():
+    # Arrange
+    state = SharedState(clock=FakeClock())
+    state.set_mission("m-1", [{"x": 1, "y": 2}, {"x": 3, "y": 4}])
+    state.start_wait(5.0)
+
+    # Act
+    state.advance_waypoint()
+
+    # Assert
+    assert state.wait_remaining() is None
+
+@pytest.mark.parametrize(
+        "status", ["idle", "paused", "completed", "cancelled", "failed"]
+)
+def test_leaving_executing_status_resets_wait(status):
+    # Arrange
+    state = SharedState(clock=FakeClock())
+    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.start_wait(5.0)
+
+    # Act
+    state.set_mission_status(status)
+
+    # Assert
+    assert state.wait_remaining() is None
+
+def test_executing_status_keeps_wait():
+    # Arrange
+    state = SharedState(clock=FakeClock())
+    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.start_wait(5.0)
+
+    # Act
+    state.set_mission_status("executing")
+
+    # Assert
+    assert state.wait_remaining() == 5.0

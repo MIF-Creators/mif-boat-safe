@@ -29,6 +29,7 @@ class MissionState:
     waypoints: list[dict] = field(default_factory=list)
     current_waypoint_idx: int = 0
     status: str = "idle"          # idle | executing | paused | completed | cancelled | failed
+    wait_until: float | None = None   # clock time when the waypoint wait ends; None = not waiting
 
 
 class SharedState:
@@ -94,6 +95,7 @@ class SharedState:
             self._mission.waypoints = list(waypoints)
             self._mission.current_waypoint_idx = 0
             self._mission.status = "executing"
+            self._mission.wait_until = None
 
     def get_mission(self) -> MissionState:
         with self._lock:
@@ -102,17 +104,21 @@ class SharedState:
                 waypoints=list(self._mission.waypoints),
                 current_waypoint_idx=self._mission.current_waypoint_idx,
                 status=self._mission.status,
+                wait_until=self._mission.wait_until,
             )
 
     def advance_waypoint(self):
         with self._lock:
             self._mission.current_waypoint_idx += 1
+            self._mission.wait_until = None
             if self._mission.current_waypoint_idx >= len(self._mission.waypoints):
                 self._mission.status = "completed"
 
     def set_mission_status(self, status: str):
         with self._lock:
             self._mission.status = status
+            if status != "executing":
+                self._mission.wait_until = None
 
     def get_current_waypoint(self) -> dict | None:
         with self._lock:
@@ -120,3 +126,15 @@ class SharedState:
             if 0 <= idx < len(self._mission.waypoints):
                 return dict(self._mission.waypoints[idx])
             return None
+
+    def start_wait(self, duration: float):
+        """Start waiting at the current waypoint for ``duration`` seconds."""
+        with self._lock:
+            self._mission.wait_until = self._clock() + duration
+
+    def wait_remaining(self) -> float | None:
+        """Seconds left to wait (<= 0 when over), or None if not waiting."""
+        with self._lock:
+            if self._mission.wait_until is None:
+                return None
+            return self._mission.wait_until - self._clock()
