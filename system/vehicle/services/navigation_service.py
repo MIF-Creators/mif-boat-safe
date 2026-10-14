@@ -84,6 +84,15 @@ class NavigationService:
         if wp is None:
             return
 
+        # Waiting at a waypoint: hold still until the wait is over,
+        # regardless of drift or stale position.
+        remaining = self._shared.wait_remaining()
+        if remaining is not None:
+            self._drive.send_command("stop")
+            if remaining <= 0:
+                self._complete_waypoint(mission)
+            return
+
         pos = self._shared.get_position()
         if not pos.valid:
             self._drive.send_command("stop")
@@ -104,20 +113,15 @@ class NavigationService:
                 duration = params.get("duration", 0)
                 if duration > 0:
                     self._drive.send_command("stop")
-                    time.sleep(duration)
+                    self._shared.start_wait(
+                        mission.mission_id, mission.current_waypoint_idx, duration,
+                    )
+                    return
 
             if action == "stop":
                 self._drive.send_command("stop")
 
-            idx = mission.current_waypoint_idx
-            self._shared.advance_waypoint()
-            if self._mission_svc:
-                new_mission = self._shared.get_mission()
-                if new_mission.status == "completed":
-                    self._mission_svc.notify_completed()
-                    self._drive.send_command("stop")
-                else:
-                    self._mission_svc.notify_waypoint_reached(idx)
+            self._complete_waypoint(mission)
             return
 
         desired_angle = math.atan2(dy, dx)
@@ -133,3 +137,14 @@ class NavigationService:
 
         cmd = self._avoidance.filter_command(raw_cmd)
         self._drive.send_command(cmd)
+
+    def _complete_waypoint(self, mission):
+        idx = mission.current_waypoint_idx
+        if not self._shared.advance_waypoint(mission.mission_id, idx):
+            return  # mission was replaced meanwhile; next tick handles the new one
+        if self._mission_svc:
+            if idx + 1 >= len(mission.waypoints):
+                self._mission_svc.notify_completed(mission.mission_id, idx + 1)
+                self._drive.send_command("stop")
+            else:
+                self._mission_svc.notify_waypoint_reached(mission.mission_id, idx)
