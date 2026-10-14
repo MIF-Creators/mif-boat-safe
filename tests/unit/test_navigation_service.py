@@ -27,13 +27,13 @@ class FakeAvoidance:
 class FakeMissionService:
     def __init__(self):
         self.reached = []
-        self.completed_count = 0
+        self.completed = []
 
-    def notify_waypoint_reached(self, idx):
-        self.reached.append(idx)
+    def notify_waypoint_reached(self, mission_id, idx):
+        self.reached.append((mission_id, idx))
 
-    def notify_completed(self):
-        self.completed_count += 1
+    def notify_completed(self, mission_id, idx):
+        self.completed.append((mission_id, idx))
 
 
 def _create_service(shared, drive=None, avoidance=None, mission_svc=None):
@@ -96,7 +96,7 @@ def test_tick_advances_waypoint_and_notifies_completion():
     svc._tick()
 
     assert shared.get_mission().status == "completed"
-    assert mission_svc.completed_count == 1
+    assert mission_svc.completed == [("m-done", 1)]
     # "action=stop" and completion branch both request stop
     assert drive.commands.count("stop") >= 1
 
@@ -250,7 +250,7 @@ def test_wait_finishes_after_duration(no_sleep):
 
     # Assert
     assert state.get_mission().current_waypoint_idx == 1
-    assert mission_svc.reached == [0]
+    assert mission_svc.reached == [("m-1", 0)]
     assert drive.commands[-1] == "forward"
 
 def test_wait_continues_when_vehicle_drifts_or_position_is_stale(no_sleep):
@@ -341,3 +341,86 @@ def test_wait_after_cancel_does_not_carry_over_to_new_mission(no_sleep):
 
     # Assert
     assert drive.commands[-1] == "forward"
+
+
+class MissionReplacingState(SharedState):
+    """SharedState that swaps the mission at a chosen moment of a tick.
+
+    Simulates the MQTT thread assigning a new mission while the navigation
+    thread is between reading the mission and acting on it.
+    """
+
+    def __init__(self, replace_on, new_waypoints, **kwargs):
+        super().__init__(**kwargs)
+        self._replace_on = replace_on
+        self._new_waypoints = new_waypoints
+        self.replaced = False
+
+    def _replace(self, method):
+        if method == self._replace_on and not self.replaced:
+            self.replaced = True
+            self.set_mission("m-2", self._new_waypoints)
+
+    def get_position(self):
+        self._replace("get_position")
+        return super().get_position()
+
+    def advance_waypoint(self, mission_id, idx):
+        advanced = super().advance_waypoint(mission_id, idx)
+        self._replace("advance_waypoint")
+        return advanced
+
+def test_new_mission_waypoint_not_skipped_when_replaced_mid_tick():
+    # Arrange
+    state = MissionReplacingState(
+        replace_on="get_position", new_waypoints=[{"x": 10, "y": 0}],
+    )
+    state.set_mission("m-1", [{"x": 0, "y": 0}, {"x": 5, "y": 5}])
+    state.update_position(0, 0, 0)  # vehicle at m-1 waypoint 0
+    mission_svc = FakeMissionService()
+    service = _create_service(state, mission_svc=mission_svc)
+
+    # Act
+    service._tick()
+
+    # Assert
+    assert state.replaced
+    mission = state.get_mission()
+    assert (mission.mission_id, mission.current_waypoint_idx) == ("m-2", 0)
+    assert mission_svc.reached == []
+    assert mission_svc.completed == []
+
+def test_old_wait_not_started_on_new_mission_when_replaced_mid_tick():
+    # Arrange
+    state = MissionReplacingState(
+        replace_on="get_position", new_waypoints=[{"x": 10, "y": 0}],
+        clock=FakeClock(),
+    )
+    state.set_mission("m-1", [{"x": 0, "y": 0, "action": "wait", "params": {"duration": 5}}])
+    state.update_position(0, 0, 0)
+    service = _create_service(state)
+
+    # Act
+    service._tick()
+
+    # Assert
+    assert state.replaced
+    assert state.wait_remaining() is None
+
+def test_completion_reported_for_finished_mission_when_replaced_after_advance():
+    # Arrange
+    state = MissionReplacingState(
+        replace_on="advance_waypoint", new_waypoints=[{"x": 10, "y": 0}],
+    )
+    state.set_mission("m-1", [{"x": 0, "y": 0}])
+    state.update_position(0, 0, 0)
+    mission_svc = FakeMissionService()
+    service = _create_service(state, mission_svc=mission_svc)
+
+    # Act
+    service._tick()
+
+    # Assert
+    assert state.replaced
+    assert mission_svc.completed == [("m-1", 1)]
+    assert mission_svc.reached == []

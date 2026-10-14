@@ -1,4 +1,8 @@
-from system.common.messages import MissionControlMessage, MissionMessage
+from system.common.messages import (
+    MissionControlMessage,
+    MissionMessage,
+    MissionStatusMessage,
+)
 from system.common.topics import Topics
 from system.vehicle.services.mission_service import MissionService
 from system.vehicle.shared_state import SharedState
@@ -84,3 +88,39 @@ def test_control_for_other_mission_is_ignored():
 
     assert shared.get_mission().status == "executing"
     assert mqtt.published == []
+
+
+def _published_status(mqtt):
+    return MissionStatusMessage.from_json(mqtt.published[-1]["payload"])
+
+def test_waypoint_reached_reports_given_mission_even_if_replaced():
+    # Arrange
+    shared = SharedState()
+    mqtt = FakeMqtt()
+    service = MissionService("vehicle_0", shared, mqtt)
+    shared.set_mission("m-2", [{"x": 1, "y": 1}])  # m-1 was replaced
+
+    # Act
+    service.notify_waypoint_reached("m-1", 3)
+
+    # Assert
+    status = _published_status(mqtt)
+    assert (status.mission_id, status.status, status.current_waypoint_idx) == (
+        "m-1", "waypoint_reached", 3,
+    )
+
+def test_completed_reports_given_mission_even_if_replaced():
+    # Arrange
+    shared = SharedState()
+    mqtt = FakeMqtt()
+    service = MissionService("vehicle_0", shared, mqtt)
+    shared.set_mission("m-2", [{"x": 1, "y": 1}])  # m-1 was replaced
+
+    # Act
+    service.notify_completed("m-1", 4)
+
+    # Assert
+    status = _published_status(mqtt)
+    assert (status.mission_id, status.status, status.current_waypoint_idx) == (
+        "m-1", "completed", 4,
+    )
