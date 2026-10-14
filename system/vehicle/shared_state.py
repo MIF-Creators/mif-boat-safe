@@ -107,12 +107,24 @@ class SharedState:
                 wait_until=self._mission.wait_until,
             )
 
-    def advance_waypoint(self):
+    def _is_current(self, mission_id: str, idx: int) -> bool:
+        return (mission_id, idx) == (self._mission.mission_id,
+                                     self._mission.current_waypoint_idx)
+
+    def advance_waypoint(self, mission_id: str, idx: int) -> bool:
+        """Advance past waypoint ``idx`` of ``mission_id``.
+
+        Does nothing and returns False if the mission or waypoint has
+        changed since the caller read it.
+        """
         with self._lock:
+            if not self._is_current(mission_id, idx):
+                return False
             self._mission.current_waypoint_idx += 1
             self._mission.wait_until = None
             if self._mission.current_waypoint_idx >= len(self._mission.waypoints):
                 self._mission.status = "completed"
+            return True
 
     def set_mission_status(self, status: str):
         with self._lock:
@@ -127,10 +139,17 @@ class SharedState:
                 return dict(self._mission.waypoints[idx])
             return None
 
-    def start_wait(self, duration: float):
-        """Start waiting at the current waypoint for ``duration`` seconds."""
+    def start_wait(self, mission_id: str, idx: int, duration: float) -> bool:
+        """Start waiting at waypoint ``idx`` of ``mission_id`` for ``duration`` seconds.
+
+        Does nothing and returns False if the mission or waypoint has
+        changed since the caller read it.
+        """
         with self._lock:
+            if not self._is_current(mission_id, idx):
+                return False
             self._mission.wait_until = self._clock() + duration
+            return True
 
     def wait_remaining(self) -> float | None:
         """Seconds left to wait (<= 0 when over), or None if not waiting."""

@@ -113,7 +113,9 @@ class NavigationService:
                 duration = params.get("duration", 0)
                 if duration > 0:
                     self._drive.send_command("stop")
-                    self._shared.start_wait(duration)
+                    self._shared.start_wait(
+                        mission.mission_id, mission.current_waypoint_idx, duration,
+                    )
                     return
 
             if action == "stop":
@@ -138,11 +140,11 @@ class NavigationService:
 
     def _complete_waypoint(self, mission):
         idx = mission.current_waypoint_idx
-        self._shared.advance_waypoint()
+        if not self._shared.advance_waypoint(mission.mission_id, idx):
+            return  # mission was replaced meanwhile; next tick handles the new one
         if self._mission_svc:
-            new_mission = self._shared.get_mission()
-            if new_mission.status == "completed":
-                self._mission_svc.notify_completed()
+            if idx + 1 >= len(mission.waypoints):
+                self._mission_svc.notify_completed(mission.mission_id, idx + 1)
                 self._drive.send_command("stop")
             else:
-                self._mission_svc.notify_waypoint_reached(idx)
+                self._mission_svc.notify_waypoint_reached(mission.mission_id, idx)

@@ -83,18 +83,24 @@ class MissionService:
 
     # -- notifications -----------------------------------------------------
 
-    def notify_waypoint_reached(self, idx: int):
-        self._publish_status("waypoint_reached", waypoint_idx=idx)
+    # Called from the navigation thread: the mission may already be replaced
+    # in shared state, so the caller passes the mission it is reporting on.
 
-    def notify_completed(self):
-        self._publish_status("completed")
+    def notify_waypoint_reached(self, mission_id: str, idx: int):
+        self._send_status(mission_id, "waypoint_reached", idx)
 
-    def _publish_status(self, status: str, waypoint_idx: int | None = None):
+    def notify_completed(self, mission_id: str, idx: int):
+        self._send_status(mission_id, "completed", idx)
+
+    def _publish_status(self, status: str):
         mission = self._shared.get_mission()
+        self._send_status(mission.mission_id, status, mission.current_waypoint_idx)
+
+    def _send_status(self, mission_id: str, status: str, waypoint_idx: int):
         msg = MissionStatusMessage(
-            mission_id=mission.mission_id,
+            mission_id=mission_id,
             vehicle_id=self._vehicle_id,
             status=status,
-            current_waypoint_idx=waypoint_idx if waypoint_idx is not None else mission.current_waypoint_idx,
+            current_waypoint_idx=waypoint_idx,
         )
         self._mqtt.publish(Topics.mission_status(self._vehicle_id), msg.to_json(), qos=1)
