@@ -193,3 +193,151 @@ def test_navigation_thread_survives_errors():
 
     # Assert
     assert alive
+
+@pytest.fixture
+def no_sleep(monkeypatch):
+    """Fail the test if the code under test blocks in time.sleep."""
+    def fail_sleep(seconds):
+        raise AssertionError(f"tick blocked in time.sleep({seconds})")
+    monkeypatch.setattr(time, "sleep", fail_sleep)
+
+def _waiting_vehicle(clock, duration=5.0, mission_svc=None):
+    """Vehicle standing at a waypoint with a wait action, next waypoint far away."""
+    state = SharedState(clock=clock)
+    state.set_mission("m-1", [
+        {"x": 0, "y": 0, "action": "wait", "params": {"duration": duration}},
+        {"x": 10, "y": 0},
+    ])
+    state.update_position(0, 0, 0)
+    drive = FakeDrive()
+    service = _create_service(state, drive=drive, mission_svc=mission_svc)
+    return state, drive, service
+
+def _tick_with_fresh_position(state, service, x=0, y=0):
+    state.update_position(x, y, 0)
+    service._tick()
+
+def test_wait_does_not_finish_early(no_sleep):
+    # Arrange
+    clock = FakeClock()
+    mission_svc = FakeMissionService()
+    state, drive, service = _waiting_vehicle(clock, duration=5.0, mission_svc=mission_svc)
+
+    # Act
+    service._tick()
+    for _ in range(4):
+        clock.advance(1.0)
+        _tick_with_fresh_position(state, service)
+    clock.advance(0.9)
+    _tick_with_fresh_position(state, service)
+
+    # Assert
+    assert state.get_mission().current_waypoint_idx == 0
+    assert mission_svc.reached == []
+    assert drive.commands == ["stop"] * 6
+
+def test_wait_finishes_after_duration(no_sleep):
+    # Arrange
+    clock = FakeClock()
+    mission_svc = FakeMissionService()
+    state, drive, service = _waiting_vehicle(clock, duration=5.0, mission_svc=mission_svc)
+    service._tick()
+
+    # Act
+    clock.advance(5.0)
+    _tick_with_fresh_position(state, service)
+    _tick_with_fresh_position(state, service)
+
+    # Assert
+    assert state.get_mission().current_waypoint_idx == 1
+    assert mission_svc.reached == [0]
+    assert drive.commands[-1] == "forward"
+
+def test_wait_continues_when_vehicle_drifts_or_position_is_stale(no_sleep):
+    # Arrange
+    clock = FakeClock()
+    state, drive, service = _waiting_vehicle(clock, duration=5.0)
+    service._tick()
+
+    # Act
+    clock.advance(1.0)
+    _tick_with_fresh_position(state, service, x=3, y=3)  # outside tolerance
+    clock.advance(2.0)
+    service._tick()  # position is stale
+    stopped_while_waiting = drive.commands[-1] == "stop"
+    clock.advance(2.0)
+    _tick_with_fresh_position(state, service, x=3, y=3)
+
+    # Assert
+    assert stopped_while_waiting
+    assert state.get_mission().current_waypoint_idx == 1
+
+@pytest.mark.parametrize(
+        "status", ["paused", "cancelled"]
+)
+def test_pause_or_cancel_during_wait_stops_immediately(no_sleep, status):
+    # Arrange
+    clock = FakeClock()
+    state, drive, service = _waiting_vehicle(clock, duration=5.0)
+    service._tick()
+
+    # Act
+    state.set_mission_status(status)
+    clock.advance(10.0)
+    _tick_with_fresh_position(state, service)
+
+    # Assert
+    assert drive.commands[-1] == "stop"
+    assert state.get_mission().current_waypoint_idx == 0
+
+def test_wait_restarts_after_resume(no_sleep):
+    # Arrange
+    clock = FakeClock()
+    state, drive, service = _waiting_vehicle(clock, duration=5.0)
+    service._tick()
+    clock.advance(4.0)
+    state.set_mission_status("paused")
+    _tick_with_fresh_position(state, service)
+
+    # Act
+    state.set_mission_status("executing")
+    _tick_with_fresh_position(state, service)
+    clock.advance(4.0)
+    _tick_with_fresh_position(state, service)
+
+    # Assert
+    assert state.get_mission().current_waypoint_idx == 0
+    assert drive.commands[-1] == "stop"
+
+def test_new_mission_resets_wait(no_sleep):
+    # Arrange
+    clock = FakeClock()
+    mission_svc = FakeMissionService()
+    state, drive, service = _waiting_vehicle(clock, duration=5.0, mission_svc=mission_svc)
+    service._tick()
+
+    # Act
+    state.set_mission("m-2", [{"x": 10, "y": 0}])
+    _tick_with_fresh_position(state, service)
+
+    # Assert
+    assert drive.commands[-1] == "forward"
+    clock.advance(10.0)
+    _tick_with_fresh_position(state, service)
+    assert state.get_mission().current_waypoint_idx == 0
+    assert mission_svc.reached == []
+
+def test_wait_after_cancel_does_not_carry_over_to_new_mission(no_sleep):
+    # Arrange
+    clock = FakeClock()
+    state, drive, service = _waiting_vehicle(clock, duration=5.0)
+    service._tick()
+    state.set_mission_status("cancelled")
+    service._tick()
+
+    # Act
+    state.set_mission("m-2", [{"x": 10, "y": 0}])
+    _tick_with_fresh_position(state, service)
+
+    # Assert
+    assert drive.commands[-1] == "forward"
