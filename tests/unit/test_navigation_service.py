@@ -1,3 +1,5 @@
+import logging
+import time
 import pytest
 
 from system.vehicle.services.navigation_service import NavigationService
@@ -128,3 +130,66 @@ def test_moving_vehicle_stops_when_position_becomes_stale():
 
     # Assert
     assert drive.commands[-1] == "stop"
+
+def test_safe_tick_stops_motors_on_error():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"y": 10}])  # broken waypoint: no "x"
+    state.update_position(0, 0, 0)
+    drive = FakeDrive()
+    service = _create_service(state, drive=drive)
+
+    # Act
+    service._safe_tick()
+
+    # Assert
+    assert drive.commands == ["stop"]
+
+def test_repeated_error_is_longer_once(caplog):
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"y": 10}])
+    state.update_position(0, 0, 0)
+    service = _create_service(state)
+
+    # Act
+    with caplog.at_level(logging.ERROR):
+        for _ in range(3):
+            service._safe_tick()
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+
+    # Assert
+    assert len(errors) == 1
+
+def test_navigation_works_again_after_error():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"y": 5}])
+    state.update_position(0, 0, 0)
+    drive = FakeDrive()
+    service = _create_service(state, drive=drive)
+    service._safe_tick()
+    assert drive.commands[-1] == "stop"  # precondition
+
+    # Act
+    state.set_mission("m-2", [{"x": 10, "y": 0}])
+    service._safe_tick()
+
+    # Assert
+    assert drive.commands[-1] == "forward"
+
+def test_navigation_thread_survives_errors():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"y": 5}])
+    state.update_position(0, 0, 0)
+    service = _create_service(state)
+
+    # Act
+    service.start()
+    time.sleep(0.2)  # several ticks at 20 Hz
+    alive = service._thread.is_alive()
+    service.stop()
+
+    # Assert
+    assert alive
