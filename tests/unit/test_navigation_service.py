@@ -1,6 +1,10 @@
+import logging
+import time
+import pytest
+
 from system.vehicle.services.navigation_service import NavigationService
 from system.vehicle.shared_state import SharedState
-
+from tests.unit.fakes import FakeClock
 
 class FakeDrive:
     def __init__(self):
@@ -43,33 +47,43 @@ def _create_service(shared, drive=None, avoidance=None, mission_svc=None):
         loop_rate_hz=20,
     )
 
-
-def test_tick_does_nothing_when_mission_not_executing():
-    shared = SharedState()
-    shared.set_mission("m-idle", [{"x": 10, "y": 10}])
-    shared.set_mission_status("paused")
-    shared.update_position(0, 0, 0)
-
+@pytest.mark.parametrize(
+        "status", ["idle", "paused", "completed", "cancelled", "failed"]
+)
+def test_tick_sends_stop_when_mission_not_executing(status):
+    # Arrange
+    shared_state = SharedState()
+    shared_state.set_mission("m-1", [{"x": 10, "y": 10}])
+    shared_state.set_mission_status(status)
+    shared_state.update_position(0, 0, 0)
     drive = FakeDrive()
-    svc = _create_service(shared, drive=drive)
-    svc._tick()
+    nav_service = _create_service(shared_state, drive=drive)
 
-    assert drive.commands == []
+    # Act
+    nav_service._tick()
 
+    # Assert
+    assert drive.commands == ["stop"]
 
-def test_tick_sends_turn_command_based_on_heading_error():
-    shared = SharedState()
-    shared.set_mission("m-turn", [{"x": 0, "y": 10}])  # desired angle ~ +pi/2
-    shared.update_position(0, 0, 0)  # heading to +x -> should rotate left
-
+@pytest.mark.parametrize(
+        "status", ["paused", "cancelled"]
+)
+def test_moving_vehicle_stops_after_pause_or_cancel(status):
+    # Arrange
+    shared_state = SharedState()
+    shared_state.set_mission("m-1", [{"x": 10, "y": 0}])
+    shared_state.update_position(0, 0, 0)
     drive = FakeDrive()
-    avoidance = FakeAvoidance(suffix="_safe")
-    svc = _create_service(shared, drive=drive, avoidance=avoidance)
-    svc._tick()
+    nav_service = _create_service(shared_state, drive=drive)
+    nav_service._tick()
+    assert drive.commands[-1] == "forward"
 
-    assert avoidance.raw_commands == ["left"]
-    assert drive.commands == ["left_safe"]
+    # Act
+    shared_state.set_mission_status(status)
+    nav_service._tick()
 
+    # Assert
+    assert drive.commands[-1] == "stop"
 
 def test_tick_advances_waypoint_and_notifies_completion():
     shared = SharedState()
@@ -86,14 +100,96 @@ def test_tick_advances_waypoint_and_notifies_completion():
     # "action=stop" and completion branch both request stop
     assert drive.commands.count("stop") >= 1
 
-
-def test_tick_skips_when_position_invalid():
-    shared = SharedState()
-    shared.set_mission("m-invalid-pos", [{"x": 5, "y": 5}])
-    # position.valid remains False by default
+def test_tick_sends_stop_when_position_never_received():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"x": 5, "y": 5}])
     drive = FakeDrive()
-    svc = _create_service(shared, drive=drive)
+    service = _create_service(state, drive=drive)
 
-    svc._tick()
+    # Act
+    service._tick()
 
-    assert drive.commands == []
+    # Assert
+    assert drive.commands == ["stop"]
+
+def test_moving_vehicle_stops_when_position_becomes_stale():
+    # Arrange
+    clock = FakeClock()
+    state = SharedState(position_timeout=1.0, clock=clock)
+    state.set_mission("m-1", [{"x": 10, "y": 0}])
+    state.update_position(0, 0, 0)
+    drive = FakeDrive()
+    service = _create_service(state, drive=drive)
+    service._tick()
+    assert drive.commands[-1] == "forward"
+
+    # Act
+    clock.advance(1.5)
+    service._tick()
+
+    # Assert
+    assert drive.commands[-1] == "stop"
+
+def test_safe_tick_stops_motors_on_error():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"y": 10}])  # broken waypoint: no "x"
+    state.update_position(0, 0, 0)
+    drive = FakeDrive()
+    service = _create_service(state, drive=drive)
+
+    # Act
+    service._safe_tick()
+
+    # Assert
+    assert drive.commands == ["stop"]
+
+def test_repeated_error_is_longer_once(caplog):
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"y": 10}])
+    state.update_position(0, 0, 0)
+    service = _create_service(state)
+
+    # Act
+    with caplog.at_level(logging.ERROR):
+        for _ in range(3):
+            service._safe_tick()
+    errors = [r for r in caplog.records if r.levelno == logging.ERROR]
+
+    # Assert
+    assert len(errors) == 1
+
+def test_navigation_works_again_after_error():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"y": 5}])
+    state.update_position(0, 0, 0)
+    drive = FakeDrive()
+    service = _create_service(state, drive=drive)
+    service._safe_tick()
+    assert drive.commands[-1] == "stop"  # precondition
+
+    # Act
+    state.set_mission("m-2", [{"x": 10, "y": 0}])
+    service._safe_tick()
+
+    # Assert
+    assert drive.commands[-1] == "forward"
+
+def test_navigation_thread_survives_errors():
+    # Arrange
+    state = SharedState()
+    state.set_mission("m-1", [{"y": 5}])
+    state.update_position(0, 0, 0)
+    service = _create_service(state)
+
+    # Act
+    service.start()
+    time.sleep(0.2)  # several ticks at 20 Hz
+    alive = service._thread.is_alive()
+    service.stop()
+
+    # Assert
+    assert alive

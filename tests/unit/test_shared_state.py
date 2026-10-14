@@ -1,6 +1,7 @@
 import threading
 
 from system.vehicle.shared_state import SharedState
+from tests.unit.fakes import FakeClock
 
 
 def test_position_roundtrip_returns_copy():
@@ -15,6 +16,50 @@ def test_position_roundtrip_returns_copy():
     pos2 = shared.get_position()
     assert pos2.x == 10.5
 
+def test_position_is_invalid_before_first_update():
+    # Arrange
+    state = SharedState()
+
+    # Assert
+    assert state.get_position().valid is False
+
+def test_position_stays_valid_within_timeout():
+    # Arrange
+    clock = FakeClock()
+    state = SharedState(position_timeout=1.0, clock=clock)
+    state.update_position(10, 20, 0)
+
+    # Act
+    clock.advance(0.5)
+
+    # Assert
+    assert state.get_position().valid is True
+
+def test_position_becomes_stale_after_timeout():
+    # Arrange
+    clock = FakeClock()
+    state = SharedState(position_timeout=1.0, clock=clock)
+    state.update_position(10, 20, 0)
+
+    # Act
+    clock.advance(1.5)
+
+    # Assert
+    assert state.get_position().valid is False
+
+def test_new_update_makes_stale_position_valid_again():
+    # Arrange
+    clock = FakeClock()
+    state = SharedState(position_timeout=1.0, clock=clock)
+    state.update_position(10, 20, 0)
+    clock.advance(1.5)
+    assert state.get_position().valid is False
+
+    # Act
+    state.update_position(11, 21, 1)
+
+    # Assert
+    assert state.get_position().valid is True
 
 def test_mission_lifecycle_and_current_waypoint():
     shared = SharedState()

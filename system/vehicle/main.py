@@ -28,7 +28,7 @@ def main():
     cfg = VehicleConfig.load(env_path=component_dotenv_path(__file__))
     log.info("Vehicle ID: %s  (ArUco marker %d)", cfg.vehicle_id, cfg.aruco_marker_id)
 
-    shared = SharedState()
+    shared = SharedState(position_timeout=cfg.position_timeout)
 
     mqtt = VehicleMqttClient(cfg)
     mqtt.connect()
@@ -36,7 +36,7 @@ def main():
 
     position_svc = PositionService(cfg.vehicle_id, shared, mqtt)
     mission_svc = MissionService(cfg.vehicle_id, shared, mqtt)
-    drive_svc = DriveService(duty_cycle=cfg.pwm_duty_cycle)
+    drive_svc = DriveService(duty_cycle=cfg.pwm_duty_cycle, command_timeout=cfg.drive_command_timeout)
     obstacle_det = ObstacleDetectionService(shared)
     obstacle_avoid = ObstacleAvoidanceService(obstacle_det)
     nav_svc = NavigationService(
