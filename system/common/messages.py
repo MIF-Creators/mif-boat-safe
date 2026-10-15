@@ -9,7 +9,6 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field, asdict
-from typing import Optional
 
 
 # ---------------------------------------------------------------------------

@@ -106,9 +106,6 @@ class NavigationServerConfig(MqttConfig):
         focus_raw = os.getenv("CAMERA_FOCUS", "").strip()
         camera_focus = float(focus_raw) if focus_raw else None
 
-        rtsp_raw = os.getenv("CAMERA_RTSP_URL", "").strip()
-        camera_rtsp_url = rtsp_raw if rtsp_raw else None
-
         preview_raw = os.getenv("SHOW_VIDEO_PREVIEW", "1").strip().lower()
         show_video_preview = preview_raw in ("1", "true", "yes", "on")
 

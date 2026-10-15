@@ -1,11 +1,10 @@
 """Control Center entry point – Flask web app + MQTT client."""
 
-import json
 import logging
 import threading
 import time
 
-from flask import Flask, jsonify, request, render_template, send_from_directory
+from flask import Flask, jsonify, request, render_template
 
 from system.common.config import ControlCenterConfig, component_dotenv_path
 from system.control_center.mqtt_client import ControlCenterMqtt
