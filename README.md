@@ -6,11 +6,25 @@
 
 Рабочая и актуальная система находится в `system/`.
 
-Запуск компонентов из корня репозитория:
+Установка из корня репозитория (Windows, Linux, Raspberry Pi одинаково):
 
-- `python -m system.control_center.main`
-- `python -m system.navigation_server.main`
-- `python -m system.vehicle.main`
+```bash
+python -m venv venv
+# Windows: venv\Scripts\activate    Linux / Raspberry Pi: source venv/bin/activate
+pip install -r system/requirements.txt
+pip install -e .
+```
+
+`pip install -e .` ставит пакет `system` в режиме разработки: правки в коде
+подхватываются без переустановки, импорт `system.*` работает из любого каталога.
+
+Запуск компонентов:
+
+| Компонент | Команда | То же через модуль (из любого каталога) |
+|---|---|---|
+| Пункт управления | `boat-control` | `python -m system.control_center.main` |
+| Навигационный сервер | `boat-nav` | `python -m system.navigation_server.main` |
+| Лодка | `boat-vehicle` | `python -m system.vehicle.main` |
 
 Подробная инструкция по настройке, MQTT-топикам и переменным окружения находится в `system/README.md`.
 

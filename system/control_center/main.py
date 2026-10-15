@@ -2,11 +2,8 @@
 
 import json
 import logging
-import sys
 import threading
 import time
-
-sys.path.insert(0, __file__.rsplit("/system/", 1)[0])
 
 from flask import Flask, jsonify, request, render_template, send_from_directory
 

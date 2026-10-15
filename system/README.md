@@ -27,14 +27,21 @@ All components communicate through a single MQTT broker.
 
 ## Quick Start
 
-### 1. Install dependencies (all machines)
+### 1. Install (all machines)
+
+From the repo root, in a virtual environment:
 
 ```bash
-cd system
-pip install -r requirements.txt
+pip install -r system/requirements.txt
+pip install -e .
 # On Raspberry Pi also:
 pip install RPi.GPIO
 ```
+
+`pip install -e .` installs the `system` package in editable mode and adds the
+console commands `boat-vehicle`, `boat-nav` and `boat-control`. After that each
+component can be started either by its command or with
+`python -m system.<component>.main` from any directory.
 
 ### 2. Start MQTT Broker (PC1)
 
@@ -64,46 +71,28 @@ mosquitto -c mosquitto.conf
 ### 3. Configure and run Navigation Server (PC3)
 
 ```bash
-cd system/navigation_server
-cp .env.example .env
+cp system/navigation_server/.env.example system/navigation_server/.env
 # Edit .env: set MQTT_BROKER_HOST to PC1 IP address
-python -m system.navigation_server.main
-```
-
-Run from the repo root:
-
-```bash
-python -m system.navigation_server.main
+boat-nav
+# or: python -m system.navigation_server.main
 ```
 
 ### 4. Configure and run Vehicle (PC2 – Raspberry Pi)
 
 ```bash
-cd system/vehicle
-cp .env.example .env
+cp system/vehicle/.env.example system/vehicle/.env
 # Edit .env: set MQTT_BROKER_HOST to PC1 IP address, configure VEHICLE_ID
-python -m system.vehicle.main
-```
-
-Run from the repo root:
-
-```bash
-python -m system.vehicle.main
+boat-vehicle
+# or: python -m system.vehicle.main
 ```
 
 ### 5. Configure and run Control Center (PC1)
 
 ```bash
-cd system/control_center
-cp .env.example .env
+cp system/control_center/.env.example system/control_center/.env
 # Edit .env if needed (broker is localhost by default)
-python -m system.control_center.main
-```
-
-Run from the repo root:
-
-```bash
-python -m system.control_center.main
+boat-control
+# or: python -m system.control_center.main
 ```
 
 Open browser: `http://localhost:8080`
@@ -122,7 +111,7 @@ Open browser: `http://localhost:8080`
 
 ## Configuration
 
-Each component reads settings from a `.env` file next to that component’s `main.py` (for example `system/navigation_server/.env`). You can run `python -m system.navigation_server.main` from the repo root; the correct file is still loaded. Values in `.env` override the same variables if they were set in the shell. See `.env.example` files for available options.
+Each component reads settings from a `.env` file next to that component’s `main.py` (for example `system/navigation_server/.env`). The working directory does not matter: `boat-nav` or `python -m system.navigation_server.main` loads the same file. Values in `.env` override the same variables if they were set in the shell. See `.env.example` files for available options.
 
 **Navigation server — RTSP IP camera:** set `CAMERA_RTSP_URL=rtsp://...` in `.env`. The server loads `.env` before OpenCV so FFmpeg can use TCP (`CAMERA_RTSP_TCP=1`, default). If the stream stops after ~1 minute, the server reconnects automatically after `CAMERA_RTSP_RECONNECT_AFTER` failed reads (default 5). If problems persist, try `CAMERA_RTSP_TCP=0` (UDP).
 
