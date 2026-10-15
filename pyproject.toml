@@ -8,8 +8,28 @@ version = "0.1.0"
 description = "Fleet management for autonomous boats in a pool: vehicle, navigation server and control center over MQTT."
 readme = "README.md"
 requires-python = ">=3.10"
-# Runtime dependencies are still installed from system/requirements.txt.
-dependencies = []
+# Shared by all three components.
+dependencies = [
+    "paho-mqtt>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+# One group per machine: install the groups for what runs on it,
+# e.g. `pip install -e ".[nav]"`. See README.md.
+[project.optional-dependencies]
+# The boat needs only the shared dependencies; on a Raspberry Pi add `rpi`.
+vehicle = []
+# Motor GPIO, Raspberry Pi only. Without it the boat runs a mock motor driver.
+rpi = ["RPi.GPIO>=0.7.0"]
+nav = [
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+]
+control = ["flask>=2.3.0"]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+]
 
 [project.scripts]
 boat-vehicle = "system.vehicle.main:main"

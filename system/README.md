@@ -29,14 +29,18 @@ All components communicate through a single MQTT broker.
 
 ### 1. Install (all machines)
 
-From the repo root, in a virtual environment:
+From the repo root, in a virtual environment, install the dependency groups
+for what runs on the machine (all groups are defined in `pyproject.toml`):
 
-```bash
-pip install -r system/requirements.txt
-pip install -e .
-# On Raspberry Pi also:
-pip install RPi.GPIO
-```
+| Machine | Command |
+|---|---|
+| PC1 – Control Center | `pip install -e ".[control]"` |
+| PC2 – Vehicle (Raspberry Pi) | `pip install -e ".[vehicle,rpi]"` |
+| PC3 – Navigation Server | `pip install -e ".[nav]"` |
+| Development (all components and tests) | `pip install -e ".[vehicle,nav,control,dev]"` |
+
+The `rpi` group installs `RPi.GPIO` and only builds on a Raspberry Pi. Without it
+the vehicle runs a mock motor driver, so do not forget it on the boat.
 
 `pip install -e .` installs the `system` package in editable mode and adds the
 console commands `boat-vehicle`, `boat-nav` and `boat-control`. After that each
