@@ -22,8 +22,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install -r system/requirements.txt
-          python -m pip install -e .
+          python -m pip install -e ".[vehicle,nav,control,dev]"
           python -m pip install ruff==0.16.8
 
       - name: Lint Python code
@@ -88,8 +87,16 @@ jobs:
         with:
           python-version: "3.13"
 
+      # Audit exactly what gets installed: every dependency group, with
+      # transitive dependencies pinned by pip freeze. The project itself is
+      # not on PyPI, so it is excluded.
+      - name: Install project dependencies
+        run: |
+          python -m pip install ".[vehicle,rpi,nav,control]"
+          python -m pip freeze --exclude mif-boat-safe > audit-requirements.txt
+
       - name: Install pip-audit
         run: python -m pip install pip-audit==2.10.1
 
       - name: Audit dependencies
-        run: python -m pip_audit -r system/requirements.txt
+        run: python -m pip_audit -r audit-requirements.txt --no-deps --disable-pip

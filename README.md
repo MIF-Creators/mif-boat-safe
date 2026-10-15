@@ -11,9 +11,20 @@
 ```bash
 python -m venv venv
 # Windows: venv\Scripts\activate    Linux / Raspberry Pi: source venv/bin/activate
-pip install -r system/requirements.txt
-pip install -e .
+pip install -e ".[vehicle,nav,control,dev]"
 ```
+
+Команда выше ставит всё для разработки. На рабочие машины ставятся только
+нужные группы зависимостей из `pyproject.toml`:
+
+| Машина | Команда |
+|---|---|
+| Пункт управления | `pip install -e ".[control]"` |
+| Лодка (Raspberry Pi) | `pip install -e ".[vehicle,rpi]"` |
+| Навигационный сервер | `pip install -e ".[nav]"` |
+
+Группа `rpi` ставит `RPi.GPIO` и собирается только на Raspberry Pi. Без неё
+лодка работает с заглушкой моторов — на лодке её не забывать.
 
 `pip install -e .` ставит пакет `system` в режиме разработки: правки в коде
 подхватываются без переустановки, импорт `system.*` работает из любого каталога.
