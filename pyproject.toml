@@ -41,3 +41,11 @@ include = ["system", "system.*"]
 
 [tool.setuptools.package-data]
 "system.control_center" = ["templates/*", "static/*"]
+
+[tool.ruff]
+# Old code, kept for reference only.
+extend-exclude = ["legacy"]
+
+[tool.ruff.lint]
+# E9: syntax errors; F: pyflakes (unused imports and variables, undefined names).
+select = ["E9", "F"]
