@@ -23,6 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install -r system/requirements.txt
+          python -m pip install -e .
           python -m pip install ruff==0.16.8
 
       - name: Lint Python code

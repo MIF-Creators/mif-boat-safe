@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mif-boat-safe"
+version = "0.1.0"
+description = "Fleet management for autonomous boats in a pool: vehicle, navigation server and control center over MQTT."
+readme = "README.md"
+requires-python = ">=3.10"
+# Runtime dependencies are still installed from system/requirements.txt.
+dependencies = []
+
+[project.scripts]
+boat-vehicle = "system.vehicle.main:main"
+boat-nav = "system.navigation_server.main:main"
+boat-control = "system.control_center.main:main"
+
+[tool.setuptools.packages.find]
+include = ["system", "system.*"]
+
+[tool.setuptools.package-data]
+"system.control_center" = ["templates/*", "static/*"]

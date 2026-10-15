@@ -4,11 +4,7 @@ Captures frames, detects ArUco markers, publishes vehicle positions via MQTT.
 """
 
 import logging
-import sys
 import time
-
-# Repo root on sys.path before any ``system.*`` imports
-sys.path.insert(0, __file__.rsplit("/system/", 1)[0])
 
 # Load ``.env`` before OpenCV / camera (RTSP needs OPENCV_FFMPEG_* env before libav loads).
 from dotenv import load_dotenv

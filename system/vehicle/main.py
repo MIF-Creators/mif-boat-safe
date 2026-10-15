@@ -2,11 +2,8 @@
 
 import logging
 import signal
-import sys
 import threading
 import time
-
-sys.path.insert(0, __file__.rsplit("/system/", 1)[0])
 
 from system.common.config import VehicleConfig, component_dotenv_path
 from system.common.messages import VehicleStatusMessage
