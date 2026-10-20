@@ -79,7 +79,7 @@ class CameraManager:
 
         # Warm-up: first read often succeeds while follow-ups fail without draining / TCP.
         ok = False
-        for attempt in range(40):
+        for _attempt in range(40):
             ret, frame = cap.read()
             if ret and frame is not None:
                 ok = True

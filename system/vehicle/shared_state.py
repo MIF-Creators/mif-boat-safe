@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 import time
-from typing import Callable
+from collections.abc import Callable
 
 @dataclass
 class Position:
