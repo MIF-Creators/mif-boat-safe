@@ -28,6 +28,9 @@ jobs:
           python -m pip install -e ".[vehicle,nav,control,dev]"
           python -m pip install ruff==0.16.8
 
+      - name: Check Python formatting
+        run: python -m ruff format --check system tests
+
       - name: Lint Python code
         run: python -m ruff check system tests
 
