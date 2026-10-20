@@ -1,6 +1,7 @@
 from system.vehicle.services.drive_service import DriveService
 from tests.unit.fakes import FakeClock
 
+
 def _create_service(timeout: float = 0.5):
     clock = FakeClock()
     service = DriveService(command_timeout=timeout, clock=clock)
@@ -21,6 +22,7 @@ def test_applies_last_command():
     # Assert
     assert applied_commands == [command_name]
 
+
 def test_stops_motors_when_commands_stop_arriving():
     # Arrange
     startup_command_name = "forward"
@@ -36,6 +38,7 @@ def test_stops_motors_when_commands_stop_arriving():
     # Assert
     assert applied_commands[-1] == "stop"
 
+
 def test_keeps_moving_while_commands_arrive_in_time():
     # Arrange
     command_name = "forward"
@@ -50,6 +53,7 @@ def test_keeps_moving_while_commands_arrive_in_time():
     # Assert
     assert applied_commands == [command_name]
 
+
 def test_repeated_command_does_not_restart_motors():
     # Arrange
     command_name = "forward"
@@ -62,6 +66,7 @@ def test_repeated_command_does_not_restart_motors():
 
     # Assert
     assert applied_commands == [command_name]
+
 
 def test_stop_is_not_lost_after_many_commands():
     # Arrange
@@ -78,6 +83,7 @@ def test_stop_is_not_lost_after_many_commands():
 
     # Assert
     assert applied_commands == [stop_command]
+
 
 def test_moves_again_after_new_command_following_timeout():
     # Arrange

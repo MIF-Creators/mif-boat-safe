@@ -47,6 +47,7 @@ def _csv_int_list(raw: str) -> list[int]:
 # Config dataclasses
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MqttConfig:
     broker_host: str = "127.0.0.1"
@@ -78,7 +79,7 @@ class NavigationServerConfig(MqttConfig):
     camera_height: int = 720
     camera_skip_devices: list[str] = field(default_factory=list)
     camera_autofocus: int | None = None  # None = don't touch; 0 = off, 1 = on
-    camera_focus: float | None = None    # manual focus value (V4L2 only)
+    camera_focus: float | None = None  # manual focus value (V4L2 only)
     reference_marker_ids: list[int] = field(default_factory=lambda: [1, 2, 3, 4])
     mobile_marker_ids: list[int] = field(default_factory=lambda: [0])
     map_width: int = 100
@@ -118,7 +119,9 @@ class NavigationServerConfig(MqttConfig):
             camera_skip_devices=skip,
             camera_autofocus=camera_autofocus,
             camera_focus=camera_focus,
-            reference_marker_ids=_csv_int_list(os.getenv("REFERENCE_MARKER_IDS", "1,2,3,4")),
+            reference_marker_ids=_csv_int_list(
+                os.getenv("REFERENCE_MARKER_IDS", "1,2,3,4")
+            ),
             mobile_marker_ids=_csv_int_list(os.getenv("MOBILE_MARKER_IDS", "0")),
             map_width=int(os.getenv("MAP_WIDTH", "100")),
             map_height=int(os.getenv("MAP_HEIGHT", "100")),
@@ -153,5 +156,5 @@ class VehicleConfig(MqttConfig):
             nav_loop_rate_hz=int(os.getenv("NAV_LOOP_RATE_HZ", "10")),
             pwm_duty_cycle=int(os.getenv("PWM_DUTY_CYCLE", "20")),
             drive_command_timeout=float(os.getenv("DRIVE_COMMAND_TIMEOUT", "0.5")),
-            position_timeout=float(os.getenv("POSITION_TIMEOUT", "1.0"))
+            position_timeout=float(os.getenv("POSITION_TIMEOUT", "1.0")),
         )

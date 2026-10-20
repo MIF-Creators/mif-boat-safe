@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 import time
 from collections.abc import Callable
 
+
 @dataclass
 class Position:
     x: float = 0.0
@@ -28,16 +29,18 @@ class MissionState:
     mission_id: str = ""
     waypoints: list[dict] = field(default_factory=list)
     current_waypoint_idx: int = 0
-    status: str = "idle"          # idle | executing | paused | completed | cancelled | failed
-    wait_until: float | None = None   # clock time when the waypoint wait ends; None = not waiting
+    status: str = "idle"  # idle | executing | paused | completed | cancelled | failed
+    wait_until: float | None = (
+        None  # clock time when the waypoint wait ends; None = not waiting
+    )
 
 
 class SharedState:
     """Centralised state shared across all vehicle service threads."""
 
-    def __init__(self,
-                 position_timeout: float = 1.0,
-                 clock: Callable[[], float] = time.monotonic):
+    def __init__(
+        self, position_timeout: float = 1.0, clock: Callable[[], float] = time.monotonic
+    ):
         self._clock = clock
         self._position_timeout = position_timeout
         self._lock = threading.Lock()
@@ -108,8 +111,10 @@ class SharedState:
             )
 
     def _is_current(self, mission_id: str, idx: int) -> bool:
-        return (mission_id, idx) == (self._mission.mission_id,
-                                     self._mission.current_waypoint_idx)
+        return (mission_id, idx) == (
+            self._mission.mission_id,
+            self._mission.current_waypoint_idx,
+        )
 
     def advance_waypoint(self, mission_id: str, idx: int) -> bool:
         """Advance past waypoint ``idx`` of ``mission_id``.

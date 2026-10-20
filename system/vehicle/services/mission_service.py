@@ -28,12 +28,16 @@ class MissionService:
 
     def start(self):
         self._mqtt.subscribe(
-            Topics.mission_assign(self._vehicle_id), self._on_mission_assign,
+            Topics.mission_assign(self._vehicle_id),
+            self._on_mission_assign,
         )
         self._mqtt.subscribe(
-            Topics.mission_control(self._vehicle_id), self._on_mission_control,
+            Topics.mission_control(self._vehicle_id),
+            self._on_mission_control,
         )
-        log.info("MissionService listening for missions on vehicle=%s", self._vehicle_id)
+        log.info(
+            "MissionService listening for missions on vehicle=%s", self._vehicle_id
+        )
 
     # -- handlers ----------------------------------------------------------
 
@@ -44,8 +48,11 @@ class MissionService:
             log.exception("Bad mission payload")
             return
 
-        log.info("Mission received: %s with %d waypoints",
-                 mission.mission_id, len(mission.waypoints))
+        log.info(
+            "Mission received: %s with %d waypoints",
+            mission.mission_id,
+            len(mission.waypoints),
+        )
         self._shared.set_mission(mission.mission_id, mission.waypoints)
         self._publish_status("accepted")
 
@@ -58,8 +65,11 @@ class MissionService:
 
         mission = self._shared.get_mission()
         if ctrl.mission_id and ctrl.mission_id != mission.mission_id:
-            log.warning("Control for unknown mission %s (current=%s)",
-                        ctrl.mission_id, mission.mission_id)
+            log.warning(
+                "Control for unknown mission %s (current=%s)",
+                ctrl.mission_id,
+                mission.mission_id,
+            )
             return
 
         cmd = ctrl.command
@@ -102,4 +112,6 @@ class MissionService:
             status=status,
             current_waypoint_idx=waypoint_idx,
         )
-        self._mqtt.publish(Topics.mission_status(self._vehicle_id), msg.to_json(), qos=1)
+        self._mqtt.publish(
+            Topics.mission_status(self._vehicle_id), msg.to_json(), qos=1
+        )

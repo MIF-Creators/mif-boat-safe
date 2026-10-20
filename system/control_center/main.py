@@ -18,8 +18,8 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _lock = threading.Lock()
-_vehicle_positions: dict[str, dict] = {}     # vehicle_id -> {x, y, rotation, timestamp}
-_vehicle_statuses: dict[str, dict] = {}      # vehicle_id -> latest heartbeat
+_vehicle_positions: dict[str, dict] = {}  # vehicle_id -> {x, y, rotation, timestamp}
+_vehicle_statuses: dict[str, dict] = {}  # vehicle_id -> latest heartbeat
 _map_data: dict | None = None
 
 mission_mgr = MissionManager()
@@ -40,6 +40,7 @@ mqtt_client: ControlCenterMqtt | None = None
 
 
 # -- REST API --------------------------------------------------------------
+
 
 @app.route("/")
 def index():
@@ -82,7 +83,12 @@ def api_send_mission():
     msg = mission_mgr.create_mission(vehicle_id, waypoints)
     if mqtt_client:
         mqtt_client.send_mission(vehicle_id, msg.to_json())
-    log.info("Mission %s sent to %s (%d waypoints)", msg.mission_id, vehicle_id, len(waypoints))
+    log.info(
+        "Mission %s sent to %s (%d waypoints)",
+        msg.mission_id,
+        vehicle_id,
+        len(waypoints),
+    )
     return jsonify({"mission_id": msg.mission_id})
 
 
@@ -114,6 +120,7 @@ def api_map_refresh():
 # MQTT callbacks
 # ---------------------------------------------------------------------------
 
+
 def _on_position(data: dict):
     vid = data.get("vehicle_id", "")
     with _lock:
@@ -122,7 +129,9 @@ def _on_position(data: dict):
 
 def _on_mission_status(data: dict):
     vid = data.get("vehicle_id", "")
-    mission_mgr.update_status(vid, data.get("status", ""), data.get("current_waypoint_idx", 0))
+    mission_mgr.update_status(
+        vid, data.get("status", ""), data.get("current_waypoint_idx", 0)
+    )
 
 
 def _on_vehicle_status(data: dict):
@@ -141,6 +150,7 @@ def _on_map_response(data: dict):
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+
 
 def main():
     global mqtt_client
