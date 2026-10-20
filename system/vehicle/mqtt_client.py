@@ -23,7 +23,11 @@ class VehicleMqttClient:
         self._client.on_message = self._on_message
 
     def connect(self):
-        log.info("Connecting to MQTT broker %s:%s", self._cfg.broker_host, self._cfg.broker_port)
+        log.info(
+            "Connecting to MQTT broker %s:%s",
+            self._cfg.broker_host,
+            self._cfg.broker_port,
+        )
         self._client.connect(self._cfg.broker_host, self._cfg.broker_port, keepalive=60)
         self._client.loop_start()
 

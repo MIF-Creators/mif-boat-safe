@@ -15,6 +15,7 @@ load_dotenv(component_dotenv_path(__file__), override=True)
 
 from system.common.messages import PositionMessage
 from system.common.topics import Topics
+
 # Import camera before cv2 so ``camera`` can set OPENCV_FFMPEG_* before libav loads.
 from system.navigation_server.camera import CameraManager
 import cv2
@@ -34,8 +35,12 @@ _PREVIEW_MAX_WIDTH = 1280
 def main():
     cfg = NavigationServerConfig.load(env_path=component_dotenv_path(__file__))
 
-    log.info("Initializing camera (device=%s, %dx%d)...",
-             cfg.camera_device, cfg.camera_width, cfg.camera_height)
+    log.info(
+        "Initializing camera (device=%s, %dx%d)...",
+        cfg.camera_device,
+        cfg.camera_width,
+        cfg.camera_height,
+    )
     camera = CameraManager(
         device=cfg.camera_device,
         skip_devices=cfg.camera_skip_devices,
@@ -66,10 +71,16 @@ def main():
     frame_interval = 1.0 / cfg.publish_rate_hz
     log.info("Publishing positions at %d Hz", cfg.publish_rate_hz)
     if cfg.show_video_preview:
-        log.info("Video preview ON (window: %r, press Q to quit)", cfg.preview_window_title)
+        log.info(
+            "Video preview ON (window: %r, press Q to quit)", cfg.preview_window_title
+        )
 
     vehicle_id_map = {mid: f"vehicle_{mid}" for mid in cfg.mobile_marker_ids}
-    log.info("Tracking %d mobile marker(s): %s", len(vehicle_id_map), list(vehicle_id_map.values()))
+    log.info(
+        "Tracking %d mobile marker(s): %s",
+        len(vehicle_id_map),
+        list(vehicle_id_map.values()),
+    )
     preview_disabled = False
 
     try:
@@ -108,8 +119,14 @@ def main():
 
                 for mid, pos in all_positions.items():
                     neighbors = [
-                        {"vehicle_id": v["vehicle_id"], "x": v["x"], "y": v["y"], "rotation": v["rotation"]}
-                        for other_mid, v in all_positions.items() if other_mid != mid
+                        {
+                            "vehicle_id": v["vehicle_id"],
+                            "x": v["x"],
+                            "y": v["y"],
+                            "rotation": v["rotation"],
+                        }
+                        for other_mid, v in all_positions.items()
+                        if other_mid != mid
                     ]
                     msg = PositionMessage(
                         vehicle_id=pos["vehicle_id"],
@@ -118,7 +135,9 @@ def main():
                         rotation=pos["rotation"],
                         neighbors=neighbors,
                     )
-                    mqtt.publish(Topics.vehicle_position(pos["vehicle_id"]), msg.to_json())
+                    mqtt.publish(
+                        Topics.vehicle_position(pos["vehicle_id"]), msg.to_json()
+                    )
 
             if cfg.show_video_preview and not preview_disabled:
                 display = frame.copy()

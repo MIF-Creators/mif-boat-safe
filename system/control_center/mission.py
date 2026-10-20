@@ -23,7 +23,7 @@ class MissionManager:
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._missions: dict[str, ActiveMission] = {}   # vehicle_id -> ActiveMission
+        self._missions: dict[str, ActiveMission] = {}  # vehicle_id -> ActiveMission
 
     def create_mission(self, vehicle_id: str, waypoints: list[dict]) -> MissionMessage:
         """Build a MissionMessage and register it internally."""
@@ -42,7 +42,9 @@ class MissionManager:
             )
         return msg
 
-    def build_control(self, vehicle_id: str, command: str) -> MissionControlMessage | None:
+    def build_control(
+        self, vehicle_id: str, command: str
+    ) -> MissionControlMessage | None:
         with self._lock:
             am = self._missions.get(vehicle_id)
             if am is None:

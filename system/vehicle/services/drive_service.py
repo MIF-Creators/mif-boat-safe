@@ -19,6 +19,7 @@ log = logging.getLogger(__name__)
 
 try:
     import RPi.GPIO as GPIO
+
     _HAS_GPIO = True
 except (ImportError, RuntimeError):
     _HAS_GPIO = False
@@ -41,13 +42,16 @@ PWM_FREQ = 255
 
 LOOP_PERIOD = 0.02  # seconds between watchdog checks
 
+
 class DriveService:
     """Consumes drive commands from a thread-safe queue and actuates motors."""
 
-    def __init__(self,
-                 duty_cycle: int = 20,
-                 command_timeout: float = 0.5,
-                 clock: Callable[[], float] = time.monotonic):
+    def __init__(
+        self,
+        duty_cycle: int = 20,
+        command_timeout: float = 0.5,
+        clock: Callable[[], float] = time.monotonic,
+    ):
         self._duty = duty_cycle
         self._timeout = command_timeout
         self._clock = clock
@@ -59,15 +63,19 @@ class DriveService:
         self._running = False
         self._pwm_l = None
         self._pwm_r = None
-    
+
     def start(self):
         self._init_gpio()
-        self._thread = threading.Thread(target=self._loop, daemon=True, name=self.__class__.__name__)
+        self._thread = threading.Thread(
+            target=self._loop, daemon=True, name=self.__class__.__name__
+        )
         self._thread.start()
         self._running = True
         log.info(
             "DriveService started (GPIO=%s, duty=%d, timeout=%.2fs)",
-            _HAS_GPIO, self._duty, self._timeout
+            _HAS_GPIO,
+            self._duty,
+            self._timeout,
         )
 
     def send_command(self, command: str):
@@ -102,7 +110,7 @@ class DriveService:
 
         self._execute(target)
         self._applied_command = target
-    
+
     def _execute(self, cmd: str):
         self._motor_left("stop")
         self._motor_right("stop")

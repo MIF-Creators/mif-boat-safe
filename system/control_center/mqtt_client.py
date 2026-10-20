@@ -27,7 +27,9 @@ class ControlCenterMqtt:
         self._map_response_cb: Callable | None = None
 
     def connect(self):
-        log.info("Connecting to MQTT %s:%s", self._cfg.broker_host, self._cfg.broker_port)
+        log.info(
+            "Connecting to MQTT %s:%s", self._cfg.broker_host, self._cfg.broker_port
+        )
         self._client.connect(self._cfg.broker_host, self._cfg.broker_port, keepalive=60)
         self._client.loop_start()
 
@@ -71,6 +73,7 @@ class ControlCenterMqtt:
 
     def request_map(self):
         from system.common.messages import MapRequestMessage
+
         self._client.publish(Topics.MAP_REQUEST, MapRequestMessage().to_json(), qos=1)
 
     def send_mission(self, vehicle_id: str, payload: str):

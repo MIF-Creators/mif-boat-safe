@@ -25,9 +25,15 @@ log = logging.getLogger(__name__)
 class CameraManager:
     """Finds and manages a V4L2 camera device."""
 
-    def __init__(self, device: str | None = None, skip_devices: list[str] | None = None,
-                 width: int = 1280, height: int = 720,
-                 autofocus: int | None = None, focus: float | None = None):
+    def __init__(
+        self,
+        device: str | None = None,
+        skip_devices: list[str] | None = None,
+        width: int = 1280,
+        height: int = 720,
+        autofocus: int | None = None,
+        focus: float | None = None,
+    ):
         self.device = device
         self.skip_devices = skip_devices or []
         self.width = width
@@ -114,10 +120,16 @@ class CameraManager:
     def _apply_focus(self, cap: cv2.VideoCapture) -> None:
         if self.autofocus is not None:
             ok = cap.set(cv2.CAP_PROP_AUTOFOCUS, float(self.autofocus))
-            log.info("CAMERA_AUTOFOCUS=%d %s", self.autofocus, "applied" if ok else "not supported")
+            log.info(
+                "CAMERA_AUTOFOCUS=%d %s",
+                self.autofocus,
+                "applied" if ok else "not supported",
+            )
         if self.focus is not None:
             ok = cap.set(cv2.CAP_PROP_FOCUS, self.focus)
-            log.info("CAMERA_FOCUS=%.1f %s", self.focus, "applied" if ok else "not supported")
+            log.info(
+                "CAMERA_FOCUS=%.1f %s", self.focus, "applied" if ok else "not supported"
+            )
 
     def _find_available(self) -> bool:
         for path in sorted(glob.glob("/dev/video*")):

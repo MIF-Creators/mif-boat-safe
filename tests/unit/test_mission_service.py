@@ -63,13 +63,19 @@ def test_pause_resume_cancel_flow_for_active_mission():
     service = MissionService("vehicle_0", shared, mqtt)
     shared.set_mission("m-ctrl", [{"x": 1, "y": 1}])
 
-    service._on_mission_control(FakeMsg(MissionControlMessage(mission_id="m-ctrl", command="pause").to_json()))
+    service._on_mission_control(
+        FakeMsg(MissionControlMessage(mission_id="m-ctrl", command="pause").to_json())
+    )
     assert shared.get_mission().status == "paused"
 
-    service._on_mission_control(FakeMsg(MissionControlMessage(mission_id="m-ctrl", command="resume").to_json()))
+    service._on_mission_control(
+        FakeMsg(MissionControlMessage(mission_id="m-ctrl", command="resume").to_json())
+    )
     assert shared.get_mission().status == "executing"
 
-    service._on_mission_control(FakeMsg(MissionControlMessage(mission_id="m-ctrl", command="cancel").to_json()))
+    service._on_mission_control(
+        FakeMsg(MissionControlMessage(mission_id="m-ctrl", command="cancel").to_json())
+    )
     assert shared.get_mission().status == "cancelled"
 
     statuses = [entry["payload"] for entry in mqtt.published]
@@ -84,7 +90,9 @@ def test_control_for_other_mission_is_ignored():
     service = MissionService("vehicle_0", shared, mqtt)
     shared.set_mission("m-current", [{"x": 1, "y": 1}])
 
-    service._on_mission_control(FakeMsg(MissionControlMessage(mission_id="m-other", command="cancel").to_json()))
+    service._on_mission_control(
+        FakeMsg(MissionControlMessage(mission_id="m-other", command="cancel").to_json())
+    )
 
     assert shared.get_mission().status == "executing"
     assert mqtt.published == []
@@ -92,6 +100,7 @@ def test_control_for_other_mission_is_ignored():
 
 def _published_status(mqtt):
     return MissionStatusMessage.from_json(mqtt.published[-1]["payload"])
+
 
 def test_waypoint_reached_reports_given_mission_even_if_replaced():
     # Arrange
@@ -106,8 +115,11 @@ def test_waypoint_reached_reports_given_mission_even_if_replaced():
     # Assert
     status = _published_status(mqtt)
     assert (status.mission_id, status.status, status.current_waypoint_idx) == (
-        "m-1", "waypoint_reached", 3,
+        "m-1",
+        "waypoint_reached",
+        3,
     )
+
 
 def test_completed_reports_given_mission_even_if_replaced():
     # Arrange
@@ -122,5 +134,7 @@ def test_completed_reports_given_mission_even_if_replaced():
     # Assert
     status = _published_status(mqtt)
     assert (status.mission_id, status.status, status.current_waypoint_idx) == (
-        "m-1", "completed", 4,
+        "m-1",
+        "completed",
+        4,
     )

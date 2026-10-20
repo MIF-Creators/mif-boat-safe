@@ -22,12 +22,16 @@ log = logging.getLogger(__name__)
 
 
 class NavigationService:
-    def __init__(self, shared: SharedState, drive: DriveService,
-                 avoidance: ObstacleAvoidanceService,
-                 mission_service=None,
-                 position_tolerance: float = 5.0,
-                 angle_tolerance: float = 0.2,
-                 loop_rate_hz: int = 10):
+    def __init__(
+        self,
+        shared: SharedState,
+        drive: DriveService,
+        avoidance: ObstacleAvoidanceService,
+        mission_service=None,
+        position_tolerance: float = 5.0,
+        angle_tolerance: float = 0.2,
+        loop_rate_hz: int = 10,
+    ):
         self._shared = shared
         self._drive = drive
         self._avoidance = avoidance
@@ -41,9 +45,15 @@ class NavigationService:
 
     def start(self):
         self._running = True
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="NavigationService")
+        self._thread = threading.Thread(
+            target=self._loop, daemon=True, name="NavigationService"
+        )
         self._thread.start()
-        log.info("NavigationService started (tol=%.1f, ang_tol=%.2f)", self._pos_tol, self._ang_tol)
+        log.info(
+            "NavigationService started (tol=%.1f, ang_tol=%.2f)",
+            self._pos_tol,
+            self._ang_tol,
+        )
 
     def stop(self):
         self._running = False
@@ -72,7 +82,6 @@ class NavigationService:
         if self._tick_failing:
             log.info("Navigation recovered after error")
             self._tick_failing = False
-    
 
     def _tick(self):
         mission = self._shared.get_mission()
@@ -114,7 +123,9 @@ class NavigationService:
                 if duration > 0:
                     self._drive.send_command("stop")
                     self._shared.start_wait(
-                        mission.mission_id, mission.current_waypoint_idx, duration,
+                        mission.mission_id,
+                        mission.current_waypoint_idx,
+                        duration,
                     )
                     return
 
