@@ -60,7 +60,7 @@ class ControlCenterConfig(MqttConfig):
     vehicle_ids: list[str] = field(default_factory=lambda: ["vehicle_0"])
 
     @classmethod
-    def load(cls, env_path: str | Path | None = None) -> "ControlCenterConfig":
+    def load(cls, env_path: str | Path | None = None) -> ControlCenterConfig:
         _load_env(env_path)
         return cls(
             broker_host=os.getenv("MQTT_BROKER_HOST", "127.0.0.1"),
@@ -89,7 +89,7 @@ class NavigationServerConfig(MqttConfig):
     preview_window_title: str = "Navigation Server"
 
     @classmethod
-    def load(cls, env_path: str | Path | None = None) -> "NavigationServerConfig":
+    def load(cls, env_path: str | Path | None = None) -> NavigationServerConfig:
         _load_env(env_path)
         obstacles_raw = os.getenv("MAP_OBSTACLES", "[]")
         try:
@@ -141,7 +141,7 @@ class VehicleConfig(MqttConfig):
     position_timeout: float = 1.0
 
     @classmethod
-    def load(cls, env_path: str | Path | None = None) -> "VehicleConfig":
+    def load(cls, env_path: str | Path | None = None) -> VehicleConfig:
         _load_env(env_path)
         return cls(
             broker_host=os.getenv("MQTT_BROKER_HOST", "192.168.1.100"),

@@ -25,7 +25,7 @@ class BaseMessage:
         return json.dumps(asdict(self), ensure_ascii=False)
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "BaseMessage":
+    def from_json(cls, payload: str | bytes) -> BaseMessage:
         if isinstance(payload, bytes):
             payload = payload.decode()
         data = json.loads(payload)
@@ -55,7 +55,7 @@ class PositionMessage(BaseMessage):
     neighbors: list[dict] = field(default_factory=list)
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "PositionMessage":
+    def from_json(cls, payload: str | bytes) -> PositionMessage:
         if isinstance(payload, bytes):
             payload = payload.decode()
         data = json.loads(payload)
@@ -83,7 +83,7 @@ class MissionMessage(BaseMessage):
     waypoints: list[dict] = field(default_factory=list)
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "MissionMessage":
+    def from_json(cls, payload: str | bytes) -> MissionMessage:
         if isinstance(payload, bytes):
             payload = payload.decode()
         data = json.loads(payload)
@@ -101,7 +101,7 @@ class MissionControlMessage(BaseMessage):
     command: str = ""             # "cancel" | "pause" | "resume"
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "MissionControlMessage":
+    def from_json(cls, payload: str | bytes) -> MissionControlMessage:
         if isinstance(payload, bytes):
             payload = payload.decode()
         data = json.loads(payload)
@@ -119,7 +119,7 @@ class MissionStatusMessage(BaseMessage):
     detail: str = ""
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "MissionStatusMessage":
+    def from_json(cls, payload: str | bytes) -> MissionStatusMessage:
         if isinstance(payload, bytes):
             payload = payload.decode()
         data = json.loads(payload)
@@ -140,7 +140,7 @@ class VehicleStatusMessage(BaseMessage):
     mission_id: str = ""
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "VehicleStatusMessage":
+    def from_json(cls, payload: str | bytes) -> VehicleStatusMessage:
         if isinstance(payload, bytes):
             payload = payload.decode()
         data = json.loads(payload)
@@ -171,7 +171,7 @@ class MapMessage(BaseMessage):
     obstacles: list[dict] = field(default_factory=list)
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "MapMessage":
+    def from_json(cls, payload: str | bytes) -> MapMessage:
         if isinstance(payload, bytes):
             payload = payload.decode()
         data = json.loads(payload)
@@ -183,7 +183,7 @@ class MapRequestMessage(BaseMessage):
     """Sent by Control Center on ``control/map/request``."""
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> "MapRequestMessage":
+    def from_json(cls, payload: str | bytes) -> MapRequestMessage:
         if isinstance(payload, bytes):
             payload = payload.decode()
         data = json.loads(payload)
