@@ -7,8 +7,11 @@ import numpy as np
 class ArucoDetector:
     """Detects reference (static) and mobile ArUco markers in a frame."""
 
-    def __init__(self, reference_ids: list[int] | None = None,
-                 mobile_ids: list[int] | None = None):
+    def __init__(
+        self,
+        reference_ids: list[int] | None = None,
+        mobile_ids: list[int] | None = None,
+    ):
         self.reference_ids = set(reference_ids or [1, 2, 3, 4])
         self.mobile_ids = set(mobile_ids or [0])
 

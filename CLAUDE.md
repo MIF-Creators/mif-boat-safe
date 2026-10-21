@@ -31,9 +31,8 @@
 - Тесты: `python -m pytest` (из корня репозитория).
 - GitHub CLI (`gh`) установлен и авторизован — через него читаются issue.
   Если `gh` недоступен, попроси пользователя вставить текст issue.
-- Линтер так же, как в CI: `python -m ruff check system tests --select E9,F63,F7,F82`
-  (набор правил расширяется задачами этапа 2 — бери актуальную команду из
-  `.github/workflows/ci.yml`).
+- Линтер так же, как в CI: `python -m ruff check system tests`. Правила
+  заданы в `pyproject.toml` (`[tool.ruff.lint]`), а не в командной строке.
 
 ## Процесс работы над задачей
 

@@ -1,5 +1,6 @@
 """Test fakes shared by several test modules"""
 
+
 class FakeClock:
     """Controllable time source: tests move time forward explicitly."""
 

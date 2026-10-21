@@ -17,8 +17,9 @@ class CoordinateSystem:
         4: (100, 0),
     }
 
-    def __init__(self, map_width: int = 100, map_height: int = 100,
-                 smoothing_factor: float = 0.7):
+    def __init__(
+        self, map_width: int = 100, map_height: int = 100, smoothing_factor: float = 0.7
+    ):
         self.map_width = map_width
         self.map_height = map_height
         self.smoothing_factor = smoothing_factor
@@ -40,7 +41,9 @@ class CoordinateSystem:
                 return False
 
         src = np.array([marker_centers[mid] for mid in [1, 2, 3, 4]], dtype=np.float32)
-        dst = np.array([self.TARGET_COORDS[mid] for mid in [1, 2, 3, 4]], dtype=np.float32)
+        dst = np.array(
+            [self.TARGET_COORDS[mid] for mid in [1, 2, 3, 4]], dtype=np.float32
+        )
         self.transform_matrix = cv2.getPerspectiveTransform(src, dst)
         self.is_calibrated = True
         return True
@@ -54,7 +57,9 @@ class CoordinateSystem:
             return None
 
         pt = np.array([[pixel_point[0], pixel_point[1]]], dtype=np.float32)
-        transformed = cv2.perspectiveTransform(pt.reshape(-1, 1, 2), self.transform_matrix)
+        transformed = cv2.perspectiveTransform(
+            pt.reshape(-1, 1, 2), self.transform_matrix
+        )
         coords = transformed[0][0].copy()
         coords[0] = float(np.clip(coords[0], 0, self.map_width))
         coords[1] = float(np.clip(coords[1], 0, self.map_height))
@@ -67,8 +72,9 @@ class CoordinateSystem:
 
         return (round(float(coords[0]), 2), round(float(coords[1]), 2))
 
-    def calculate_rotation(self, marker_corners, marker_center_pixel: np.ndarray,
-                           marker_id: int = 0) -> float | None:
+    def calculate_rotation(
+        self, marker_corners, marker_center_pixel: np.ndarray, marker_id: int = 0
+    ) -> float | None:
         """Calculate vehicle heading in polygon space (radians, 0 = +X, CCW positive)."""
         if not self.is_calibrated:
             return None
@@ -76,11 +82,17 @@ class CoordinateSystem:
         corners_2d = marker_corners[0].reshape(-1, 2)
         front = corners_2d[0]
 
-        center_pt = np.array([[marker_center_pixel[0], marker_center_pixel[1]]], dtype=np.float32)
+        center_pt = np.array(
+            [[marker_center_pixel[0], marker_center_pixel[1]]], dtype=np.float32
+        )
         front_pt = np.array([[front[0], front[1]]], dtype=np.float32)
 
-        c_t = cv2.perspectiveTransform(center_pt.reshape(-1, 1, 2), self.transform_matrix)[0][0]
-        f_t = cv2.perspectiveTransform(front_pt.reshape(-1, 1, 2), self.transform_matrix)[0][0]
+        c_t = cv2.perspectiveTransform(
+            center_pt.reshape(-1, 1, 2), self.transform_matrix
+        )[0][0]
+        f_t = cv2.perspectiveTransform(
+            front_pt.reshape(-1, 1, 2), self.transform_matrix
+        )[0][0]
 
         dx = f_t[0] - c_t[0]
         dy = f_t[1] - c_t[1]
