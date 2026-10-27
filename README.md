@@ -6,11 +6,36 @@
 
 Рабочая и актуальная система находится в `system/`.
 
-Запуск компонентов из корня репозитория:
+Установка из корня репозитория (Windows, Linux, Raspberry Pi одинаково):
 
-- `python -m system.control_center.main`
-- `python -m system.navigation_server.main`
-- `python -m system.vehicle.main`
+```bash
+python -m venv venv
+# Windows: venv\Scripts\activate    Linux / Raspberry Pi: source venv/bin/activate
+pip install -e ".[vehicle,nav,control,dev]"
+```
+
+Команда выше ставит всё для разработки. На рабочие машины ставятся только
+нужные группы зависимостей из `pyproject.toml`:
+
+| Машина | Команда |
+|---|---|
+| Пункт управления | `pip install -e ".[control]"` |
+| Лодка (Raspberry Pi) | `pip install -e ".[vehicle,rpi]"` |
+| Навигационный сервер | `pip install -e ".[nav]"` |
+
+Группа `rpi` ставит `RPi.GPIO` и собирается только на Raspberry Pi. Без неё
+лодка работает с заглушкой моторов — на лодке её не забывать.
+
+`pip install -e .` ставит пакет `system` в режиме разработки: правки в коде
+подхватываются без переустановки, импорт `system.*` работает из любого каталога.
+
+Запуск компонентов:
+
+| Компонент | Команда | То же через модуль (из любого каталога) |
+|---|---|---|
+| Пункт управления | `boat-control` | `python -m system.control_center.main` |
+| Навигационный сервер | `boat-nav` | `python -m system.navigation_server.main` |
+| Лодка | `boat-vehicle` | `python -m system.vehicle.main` |
 
 Подробная инструкция по настройке, MQTT-топикам и переменным окружения находится в `system/README.md`.
 

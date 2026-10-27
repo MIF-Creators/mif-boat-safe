@@ -17,12 +17,14 @@ def test_position_roundtrip_returns_copy():
     pos2 = shared.get_position()
     assert pos2.x == 10.5
 
+
 def test_position_is_invalid_before_first_update():
     # Arrange
     state = SharedState()
 
     # Assert
     assert state.get_position().valid is False
+
 
 def test_position_stays_valid_within_timeout():
     # Arrange
@@ -36,6 +38,7 @@ def test_position_stays_valid_within_timeout():
     # Assert
     assert state.get_position().valid is True
 
+
 def test_position_becomes_stale_after_timeout():
     # Arrange
     clock = FakeClock()
@@ -47,6 +50,7 @@ def test_position_becomes_stale_after_timeout():
 
     # Assert
     assert state.get_position().valid is False
+
 
 def test_new_update_makes_stale_position_valid_again():
     # Arrange
@@ -61,6 +65,7 @@ def test_new_update_makes_stale_position_valid_again():
 
     # Assert
     assert state.get_position().valid is True
+
 
 def test_mission_lifecycle_and_current_waypoint():
     shared = SharedState()
@@ -90,7 +95,9 @@ def test_thread_safety_smoke_for_reads_and_writes():
     def writer():
         for i in range(200):
             shared.update_position(i, i + 1, i / 10)
-            shared.update_neighbors([{"vehicle_id": "v2", "x": i, "y": i, "rotation": 0.0}])
+            shared.update_neighbors(
+                [{"vehicle_id": "v2", "x": i, "y": i, "rotation": 0.0}]
+            )
 
     def reader():
         for _ in range(200):
@@ -99,7 +106,11 @@ def test_thread_safety_smoke_for_reads_and_writes():
             _ = shared.get_mission()
             _ = shared.get_current_waypoint()
 
-    threads = [threading.Thread(target=writer), threading.Thread(target=reader), threading.Thread(target=reader)]
+    threads = [
+        threading.Thread(target=writer),
+        threading.Thread(target=reader),
+        threading.Thread(target=reader),
+    ]
     for t in threads:
         t.start()
     for t in threads:
@@ -118,6 +129,7 @@ def test_no_wait_by_default():
     assert state.wait_remaining() is None
     assert state.get_mission().wait_until is None
 
+
 def test_wait_remaining_counts_down():
     # Arrange
     clock = FakeClock()
@@ -132,6 +144,7 @@ def test_wait_remaining_counts_down():
     assert state.wait_remaining() == 3.0
     assert state.get_mission().wait_until == 5.0
 
+
 def test_wait_remaining_is_not_positive_after_duration():
     # Arrange
     clock = FakeClock()
@@ -145,6 +158,7 @@ def test_wait_remaining_is_not_positive_after_duration():
     # Assert
     assert state.wait_remaining() <= 0
 
+
 def test_new_mission_resets_wait():
     # Arrange
     state = SharedState(clock=FakeClock())
@@ -156,6 +170,7 @@ def test_new_mission_resets_wait():
 
     # Assert
     assert state.wait_remaining() is None
+
 
 def test_advance_waypoint_resets_wait():
     # Arrange
@@ -169,8 +184,9 @@ def test_advance_waypoint_resets_wait():
     # Assert
     assert state.wait_remaining() is None
 
+
 @pytest.mark.parametrize(
-        "status", ["idle", "paused", "completed", "cancelled", "failed"]
+    "status", ["idle", "paused", "completed", "cancelled", "failed"]
 )
 def test_leaving_executing_status_resets_wait(status):
     # Arrange
@@ -184,6 +200,7 @@ def test_leaving_executing_status_resets_wait(status):
     # Assert
     assert state.wait_remaining() is None
 
+
 def test_executing_status_keeps_wait():
     # Arrange
     state = SharedState(clock=FakeClock())
@@ -195,6 +212,7 @@ def test_executing_status_keeps_wait():
 
     # Assert
     assert state.wait_remaining() == 5.0
+
 
 def test_advance_waypoint_applies_to_matching_mission():
     # Arrange
@@ -208,9 +226,8 @@ def test_advance_waypoint_applies_to_matching_mission():
     assert advanced is True
     assert state.get_mission().current_waypoint_idx == 1
 
-@pytest.mark.parametrize(
-        "mission_id, idx", [("m-old", 0), ("m-1", 1)]
-)
+
+@pytest.mark.parametrize("mission_id, idx", [("m-old", 0), ("m-1", 1)])
 def test_advance_waypoint_ignores_stale_mission_or_waypoint(mission_id, idx):
     # Arrange
     state = SharedState()
@@ -224,6 +241,7 @@ def test_advance_waypoint_ignores_stale_mission_or_waypoint(mission_id, idx):
     assert state.get_mission().current_waypoint_idx == 0
     assert state.get_mission().status == "executing"
 
+
 def test_start_wait_applies_to_matching_mission():
     # Arrange
     state = SharedState(clock=FakeClock())
@@ -236,9 +254,8 @@ def test_start_wait_applies_to_matching_mission():
     assert started is True
     assert state.wait_remaining() == 5.0
 
-@pytest.mark.parametrize(
-        "mission_id, idx", [("m-old", 0), ("m-1", 1)]
-)
+
+@pytest.mark.parametrize("mission_id, idx", [("m-old", 0), ("m-1", 1)])
 def test_start_wait_ignores_stale_mission_or_waypoint(mission_id, idx):
     # Arrange
     state = SharedState(clock=FakeClock())

@@ -22,7 +22,11 @@ class NavMqttClient:
         self._client.on_message = self._on_message
 
     def connect(self):
-        log.info("Connecting to MQTT broker %s:%s", self._cfg.broker_host, self._cfg.broker_port)
+        log.info(
+            "Connecting to MQTT broker %s:%s",
+            self._cfg.broker_host,
+            self._cfg.broker_port,
+        )
         self._client.connect(self._cfg.broker_host, self._cfg.broker_port, keepalive=60)
         self._client.loop_start()
 
@@ -30,12 +34,14 @@ class NavMqttClient:
         if rc == 0:
             log.info("Connected to MQTT broker")
             from system.common.topics import Topics
+
             client.subscribe(Topics.MAP_REQUEST)
         else:
             log.error("MQTT connection failed: rc=%s", rc)
 
     def _on_message(self, client, userdata, msg: mqtt.MQTTMessage):
         from system.common.topics import Topics
+
         if msg.topic == Topics.MAP_REQUEST and self._on_map_request:
             self._on_map_request()
 
