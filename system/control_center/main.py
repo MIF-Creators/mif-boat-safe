@@ -139,7 +139,16 @@ def _on_mission_status(data: dict):
     except ValueError:
         log.warning("Unknown mission event from %s: %s", vid, data.get("status"))
         return
-    mission_mgr.update_status(vid, event, data.get("current_waypoint_idx", 0))
+    mission_id = data.get("mission_id", "")
+    if not mission_mgr.update_status(
+        vid, mission_id, event, data.get("current_waypoint_idx", 0)
+    ):
+        log.warning(
+            "Ignoring %s from %s for mission %s: not its active mission",
+            event,
+            vid,
+            mission_id,
+        )
 
 
 def _on_vehicle_status(data: dict):
