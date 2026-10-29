@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from system.common.enums import MissionCommand, MissionEvent, MissionStatus
 from system.common.messages import (
     MissionMessage,
     MissionControlMessage,
@@ -54,7 +55,7 @@ class MissionService:
             len(mission.waypoints),
         )
         self._shared.set_mission(mission.mission_id, mission.waypoints)
-        self._publish_status("accepted")
+        self._publish_status(MissionEvent.ACCEPTED)
 
     def _on_mission_control(self, msg):
         try:
@@ -73,19 +74,19 @@ class MissionService:
             return
 
         cmd = ctrl.command
-        if cmd == "cancel":
-            self._shared.set_mission_status("cancelled")
-            self._publish_status("cancelled")
+        if cmd == MissionCommand.CANCEL:
+            self._shared.set_mission_status(MissionStatus.CANCELLED)
+            self._publish_status(MissionEvent.CANCELLED)
             log.info("Mission cancelled")
-        elif cmd == "pause":
-            if mission.status == "executing":
-                self._shared.set_mission_status("paused")
-                self._publish_status("paused")
+        elif cmd == MissionCommand.PAUSE:
+            if mission.status == MissionStatus.EXECUTING:
+                self._shared.set_mission_status(MissionStatus.PAUSED)
+                self._publish_status(MissionEvent.PAUSED)
                 log.info("Mission paused")
-        elif cmd == "resume":
-            if mission.status == "paused":
-                self._shared.set_mission_status("executing")
-                self._publish_status("in_progress")
+        elif cmd == MissionCommand.RESUME:
+            if mission.status == MissionStatus.PAUSED:
+                self._shared.set_mission_status(MissionStatus.EXECUTING)
+                self._publish_status(MissionEvent.RESUMED)
                 log.info("Mission resumed")
         else:
             log.warning("Unknown mission control command: %s", cmd)
@@ -96,16 +97,16 @@ class MissionService:
     # in shared state, so the caller passes the mission it is reporting on.
 
     def notify_waypoint_reached(self, mission_id: str, idx: int):
-        self._send_status(mission_id, "waypoint_reached", idx)
+        self._send_status(mission_id, MissionEvent.WAYPOINT_REACHED, idx)
 
     def notify_completed(self, mission_id: str, idx: int):
-        self._send_status(mission_id, "completed", idx)
+        self._send_status(mission_id, MissionEvent.COMPLETED, idx)
 
-    def _publish_status(self, status: str):
+    def _publish_status(self, status: MissionEvent):
         mission = self._shared.get_mission()
         self._send_status(mission.mission_id, status, mission.current_waypoint_idx)
 
-    def _send_status(self, mission_id: str, status: str, waypoint_idx: int):
+    def _send_status(self, mission_id: str, status: MissionEvent, waypoint_idx: int):
         msg = MissionStatusMessage(
             mission_id=mission_id,
             vehicle_id=self._vehicle_id,

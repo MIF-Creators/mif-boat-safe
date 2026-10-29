@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 
+from system.vehicle.services.drive_service import DriveCommand
 from system.vehicle.services.obstacle_detection import ObstacleDetectionService
 
 log = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ class ObstacleAvoidanceService:
     def stop(self):
         pass
 
-    def filter_command(self, command: str) -> str:
+    def filter_command(self, command: DriveCommand) -> DriveCommand:
         """Potentially modify a drive command to avoid obstacles.
 
         In the stub implementation the command is returned as-is.

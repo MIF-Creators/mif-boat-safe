@@ -15,6 +15,8 @@ import threading
 import time
 from collections.abc import Callable
 
+from system.common.enums import StrValueEnum
+
 log = logging.getLogger(__name__)
 
 try:
@@ -43,6 +45,16 @@ PWM_FREQ = 255
 LOOP_PERIOD = 0.02  # seconds between watchdog checks
 
 
+class DriveCommand(StrValueEnum):
+    """Command for the whole vehicle; FORWARD, BACKWARD and STOP also set one motor."""
+
+    FORWARD = "forward"
+    BACKWARD = "backward"
+    LEFT = "left"
+    RIGHT = "right"
+    STOP = "stop"
+
+
 class DriveService:
     """Consumes drive commands from a thread-safe queue and actuates motors."""
 
@@ -55,8 +67,8 @@ class DriveService:
         self._duty = duty_cycle
         self._timeout = command_timeout
         self._clock = clock
-        self._command = "stop"
-        self._applied_command: str | None = None
+        self._command = DriveCommand.STOP
+        self._applied_command: DriveCommand | None = None
         self._last_command_time = clock()
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
@@ -78,7 +90,7 @@ class DriveService:
             self._timeout,
         )
 
-    def send_command(self, command: str):
+    def send_command(self, command: DriveCommand):
         with self._lock:
             self._command = command
             self._last_command_time = self._clock()
@@ -87,7 +99,7 @@ class DriveService:
         self._running = False
         if self._thread:
             self._thread.join(timeout=2)
-        self._execute("stop")
+        self._execute(DriveCommand.STOP)
         self._cleanup_gpio()
 
     def _loop(self):
@@ -100,7 +112,7 @@ class DriveService:
             command = self._command
             is_expired = self._clock() - self._last_command_time > self._timeout
 
-        target = "stop" if is_expired else command
+        target = DriveCommand.STOP if is_expired else command
 
         if target == self._applied_command:
             return
@@ -111,23 +123,23 @@ class DriveService:
         self._execute(target)
         self._applied_command = target
 
-    def _execute(self, cmd: str):
-        self._motor_left("stop")
-        self._motor_right("stop")
+    def _execute(self, cmd: DriveCommand):
+        self._motor_left(DriveCommand.STOP)
+        self._motor_right(DriveCommand.STOP)
 
-        if cmd == "forward":
-            self._motor_left("forward")
-            self._motor_right("forward")
-        elif cmd == "backward":
-            self._motor_left("backward")
-            self._motor_right("backward")
-        elif cmd == "left":
-            self._motor_left("backward")
-            self._motor_right("forward")
-        elif cmd == "right":
-            self._motor_left("forward")
-            self._motor_right("backward")
-        elif cmd == "stop":
+        if cmd == DriveCommand.FORWARD:
+            self._motor_left(DriveCommand.FORWARD)
+            self._motor_right(DriveCommand.FORWARD)
+        elif cmd == DriveCommand.BACKWARD:
+            self._motor_left(DriveCommand.BACKWARD)
+            self._motor_right(DriveCommand.BACKWARD)
+        elif cmd == DriveCommand.LEFT:
+            self._motor_left(DriveCommand.BACKWARD)
+            self._motor_right(DriveCommand.FORWARD)
+        elif cmd == DriveCommand.RIGHT:
+            self._motor_left(DriveCommand.FORWARD)
+            self._motor_right(DriveCommand.BACKWARD)
+        elif cmd == DriveCommand.STOP:
             pass
         else:
             log.warning("Unknown drive command: %s", cmd)
@@ -154,14 +166,14 @@ class DriveService:
             self._pwm_r.stop()
         GPIO.cleanup()
 
-    def _motor_left(self, direction: str):
+    def _motor_left(self, direction: DriveCommand):
         if not _HAS_GPIO:
             return
-        if direction == "forward":
+        if direction == DriveCommand.FORWARD:
             GPIO.output(AIN1_L, GPIO.LOW)
             GPIO.output(AIN2_L, GPIO.HIGH)
             self._pwm_l.ChangeDutyCycle(self._duty)
-        elif direction == "backward":
+        elif direction == DriveCommand.BACKWARD:
             GPIO.output(AIN1_L, GPIO.HIGH)
             GPIO.output(AIN2_L, GPIO.LOW)
             self._pwm_l.ChangeDutyCycle(self._duty)
@@ -170,14 +182,14 @@ class DriveService:
             GPIO.output(AIN2_L, GPIO.LOW)
             self._pwm_l.ChangeDutyCycle(0)
 
-    def _motor_right(self, direction: str):
+    def _motor_right(self, direction: DriveCommand):
         if not _HAS_GPIO:
             return
-        if direction == "forward":
+        if direction == DriveCommand.FORWARD:
             GPIO.output(BIN1_R, GPIO.HIGH)
             GPIO.output(BIN2_R, GPIO.LOW)
             self._pwm_r.ChangeDutyCycle(self._duty)
-        elif direction == "backward":
+        elif direction == DriveCommand.BACKWARD:
             GPIO.output(BIN1_R, GPIO.LOW)
             GPIO.output(BIN2_R, GPIO.HIGH)
             self._pwm_r.ChangeDutyCycle(self._duty)

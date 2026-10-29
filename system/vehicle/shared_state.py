@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 import time
 from collections.abc import Callable
 
+from system.common.enums import MissionStatus
+
 
 @dataclass
 class Position:
@@ -29,7 +31,7 @@ class MissionState:
     mission_id: str = ""
     waypoints: list[dict] = field(default_factory=list)
     current_waypoint_idx: int = 0
-    status: str = "idle"  # idle | executing | paused | completed | cancelled | failed
+    status: MissionStatus = MissionStatus.IDLE
     wait_until: float | None = (
         None  # clock time when the waypoint wait ends; None = not waiting
     )
@@ -97,7 +99,7 @@ class SharedState:
             self._mission.mission_id = mission_id
             self._mission.waypoints = list(waypoints)
             self._mission.current_waypoint_idx = 0
-            self._mission.status = "executing"
+            self._mission.status = MissionStatus.EXECUTING
             self._mission.wait_until = None
 
     def get_mission(self) -> MissionState:
@@ -128,13 +130,13 @@ class SharedState:
             self._mission.current_waypoint_idx += 1
             self._mission.wait_until = None
             if self._mission.current_waypoint_idx >= len(self._mission.waypoints):
-                self._mission.status = "completed"
+                self._mission.status = MissionStatus.COMPLETED
             return True
 
-    def set_mission_status(self, status: str):
+    def set_mission_status(self, status: MissionStatus):
         with self._lock:
             self._mission.status = status
-            if status != "executing":
+            if status != MissionStatus.EXECUTING:
                 self._mission.wait_until = None
 
     def get_current_waypoint(self) -> dict | None:
