@@ -80,7 +80,7 @@ def test_pause_resume_cancel_flow_for_active_mission():
 
     statuses = [entry["payload"] for entry in mqtt.published]
     assert any('"status": "paused"' in p for p in statuses)
-    assert any('"status": "in_progress"' in p for p in statuses)
+    assert any('"status": "resumed"' in p for p in statuses)
     assert any('"status": "cancelled"' in p for p in statuses)
 
 

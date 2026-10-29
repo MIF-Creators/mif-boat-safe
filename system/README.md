@@ -113,6 +113,28 @@ Open browser: `http://localhost:8080`
 | `control/map/request` | Control Center | Nav Server | Request map |
 | `control/map/response` | Nav Server | Control Center | Map JSON |
 
+### Status and command values
+
+Values are defined as enums in `system/common/enums.py` and sent as plain
+strings in JSON.
+
+| Topic, field | Enum | Values |
+|---|---|---|
+| `vehicle/{vehicle_id}/mission/status`, `status` | `MissionEvent` | `accepted`, `rejected`, `waypoint_reached`, `paused`, `resumed`, `completed`, `cancelled`, `failed` |
+| `vehicle/{vehicle_id}/status`, `state` | `VehicleState` | `idle`, `executing`, `paused`, `error` |
+| `vehicle/{vehicle_id}/mission/control`, `command` | `MissionCommand` | `cancel`, `pause`, `resume` |
+| `/api/missions`, `status` (Control Center web API) | `MissionStatus` | `pending`, `executing`, `paused`, `completed`, `cancelled`, `failed` |
+
+- `MissionEvent` says what happened to a mission. The Control Center turns
+  events into the mission status: `accepted`, `waypoint_reached` and
+  `resumed` → `executing`; `paused` → `paused`; `completed` and `cancelled` →
+  the same status; `failed` and `rejected` → `failed`. A mission that was sent
+  but not answered yet is `pending`.
+- `VehicleState` is the state of the vehicle, not of its mission: after a
+  mission is completed, cancelled or failed the vehicle is `idle`.
+- `rejected` and `failed` events and the `error` state are reserved: nothing
+  sends them yet.
+
 ## Configuration
 
 Each component reads settings from a `.env` file next to that component’s `main.py` (for example `system/navigation_server/.env`). The working directory does not matter: `boat-nav` or `python -m system.navigation_server.main` loads the same file. Values in `.env` override the same variables if they were set in the shell. See `.env.example` files for available options.

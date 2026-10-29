@@ -6,6 +6,7 @@ import threading
 import time
 
 from system.common.config import VehicleConfig, component_dotenv_path
+from system.common.enums import MissionStatus, VehicleState
 from system.common.messages import VehicleStatusMessage
 from system.common.topics import Topics
 from system.vehicle.shared_state import SharedState
@@ -19,6 +20,15 @@ from system.vehicle.services.obstacle_avoidance import ObstacleAvoidanceService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [VEHICLE] %(message)s")
 log = logging.getLogger(__name__)
+
+
+def vehicle_state_for(mission_status: MissionStatus) -> VehicleState:
+    """Vehicle state for the heartbeat: a finished mission leaves the vehicle idle."""
+    if mission_status == MissionStatus.EXECUTING:
+        return VehicleState.EXECUTING
+    if mission_status == MissionStatus.PAUSED:
+        return VehicleState.PAUSED
+    return VehicleState.IDLE
 
 
 def main():
@@ -71,7 +81,7 @@ def main():
         mission = shared.get_mission()
         status_msg = VehicleStatusMessage(
             vehicle_id=cfg.vehicle_id,
-            state=mission.status,
+            state=vehicle_state_for(mission.status),
             current_waypoint_idx=mission.current_waypoint_idx,
             mission_id=mission.mission_id,
         )

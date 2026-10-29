@@ -186,7 +186,7 @@ function drawWaypoints() {
 function drawActiveMission() {
     const m = missions[selectedVehicle];
     if (!m || !m.waypoints || m.waypoints.length === 0) return;
-    if (m.status === "completed" || m.status === "cancelled") return;
+    if (["completed", "cancelled", "failed"].includes(m.status)) return;
 
     ctx.strokeStyle = "rgba(233,69,96,0.5)";
     ctx.lineWidth = 2;
@@ -263,7 +263,7 @@ function updateSidebar() {
     const m = missions[selectedVehicle];
     const mStatus = $("#missionStatus");
     if (m) {
-        const cls = m.status || "idle";
+        const cls = m.status || "pending";
         mStatus.innerHTML = `
             <div><span class="label">Status: </span><span class="value ${cls}">${cls}</span></div>
             <div><span class="label">Waypoint: </span><span class="value">${m.current_waypoint_idx + 1} / ${m.waypoints ? m.waypoints.length : 0}</span></div>

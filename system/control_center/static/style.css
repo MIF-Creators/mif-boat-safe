@@ -175,3 +175,5 @@ select, input[type="number"] {
 .mission-status .value.completed { color: var(--success); }
 .mission-status .value.cancelled { color: var(--accent); }
 .mission-status .value.paused { color: var(--warning); }
+.mission-status .value.pending { color: var(--text-dim); }
+.mission-status .value.failed { color: var(--accent); }

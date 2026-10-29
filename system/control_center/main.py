@@ -7,6 +7,7 @@ import time
 from flask import Flask, jsonify, request, render_template
 
 from system.common.config import ControlCenterConfig, component_dotenv_path
+from system.common.enums import MissionCommand, MissionEvent
 from system.control_center.mqtt_client import ControlCenterMqtt
 from system.control_center.mission import MissionManager
 
@@ -99,6 +100,10 @@ def api_mission_control():
     command = body.get("command")
     if not vehicle_id or not command:
         return jsonify({"error": "vehicle_id and command required"}), 400
+    try:
+        command = MissionCommand(command)
+    except ValueError:
+        return jsonify({"error": f"unknown command: {command}"}), 400
 
     ctrl = mission_mgr.build_control(vehicle_id, command)
     if ctrl is None:
@@ -129,9 +134,12 @@ def _on_position(data: dict):
 
 def _on_mission_status(data: dict):
     vid = data.get("vehicle_id", "")
-    mission_mgr.update_status(
-        vid, data.get("status", ""), data.get("current_waypoint_idx", 0)
-    )
+    try:
+        event = MissionEvent(data.get("status"))
+    except ValueError:
+        log.warning("Unknown mission event from %s: %s", vid, data.get("status"))
+        return
+    mission_mgr.update_status(vid, event, data.get("current_waypoint_idx", 0))
 
 
 def _on_vehicle_status(data: dict):

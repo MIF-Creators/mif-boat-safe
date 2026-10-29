@@ -6,7 +6,20 @@ import threading
 import uuid
 from dataclasses import dataclass, field
 
+from system.common.enums import MissionCommand, MissionEvent, MissionStatus
 from system.common.messages import MissionMessage, MissionControlMessage
+
+# Mission status after an event from the vehicle.
+STATUS_AFTER_EVENT = {
+    MissionEvent.ACCEPTED: MissionStatus.EXECUTING,
+    MissionEvent.REJECTED: MissionStatus.FAILED,
+    MissionEvent.WAYPOINT_REACHED: MissionStatus.EXECUTING,
+    MissionEvent.PAUSED: MissionStatus.PAUSED,
+    MissionEvent.RESUMED: MissionStatus.EXECUTING,
+    MissionEvent.COMPLETED: MissionStatus.COMPLETED,
+    MissionEvent.CANCELLED: MissionStatus.CANCELLED,
+    MissionEvent.FAILED: MissionStatus.FAILED,
+}
 
 
 @dataclass
@@ -14,7 +27,7 @@ class ActiveMission:
     mission_id: str = ""
     vehicle_id: str = ""
     waypoints: list[dict] = field(default_factory=list)
-    status: str = "pending"
+    status: MissionStatus = MissionStatus.PENDING
     current_waypoint_idx: int = 0
 
 
@@ -38,12 +51,12 @@ class MissionManager:
                 mission_id=mid,
                 vehicle_id=vehicle_id,
                 waypoints=waypoints,
-                status="sent",
+                status=MissionStatus.PENDING,
             )
         return msg
 
     def build_control(
-        self, vehicle_id: str, command: str
+        self, vehicle_id: str, command: MissionCommand
     ) -> MissionControlMessage | None:
         with self._lock:
             am = self._missions.get(vehicle_id)
@@ -51,11 +64,13 @@ class MissionManager:
                 return None
             return MissionControlMessage(mission_id=am.mission_id, command=command)
 
-    def update_status(self, vehicle_id: str, status: str, waypoint_idx: int = 0):
+    def update_status(
+        self, vehicle_id: str, event: MissionEvent, waypoint_idx: int = 0
+    ):
         with self._lock:
             am = self._missions.get(vehicle_id)
             if am:
-                am.status = status
+                am.status = STATUS_AFTER_EVENT[event]
                 am.current_waypoint_idx = waypoint_idx
 
     def get_active(self, vehicle_id: str) -> ActiveMission | None:

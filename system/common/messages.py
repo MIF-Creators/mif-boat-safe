@@ -10,6 +10,8 @@ import time
 import uuid
 from dataclasses import dataclass, field, asdict
 
+from .enums import MissionCommand, MissionEvent, VehicleState
+
 
 # ---------------------------------------------------------------------------
 # Base
@@ -101,7 +103,10 @@ class MissionControlMessage(BaseMessage):
     """Sent by Control Center on ``vehicle/{vehicle_id}/mission/control``."""
 
     mission_id: str = ""
-    command: str = ""  # "cancel" | "pause" | "resume"
+    command: MissionCommand = field(kw_only=True)
+
+    def __post_init__(self):
+        self.command = MissionCommand(self.command)
 
     @classmethod
     def from_json(cls, payload: str | bytes) -> MissionControlMessage:
@@ -117,9 +122,12 @@ class MissionStatusMessage(BaseMessage):
 
     mission_id: str = ""
     vehicle_id: str = ""
-    status: str = ""  # accepted | in_progress | waypoint_reached | completed | failed | cancelled | paused
+    status: MissionEvent = field(kw_only=True)
     current_waypoint_idx: int = 0
     detail: str = ""
+
+    def __post_init__(self):
+        self.status = MissionEvent(self.status)
 
     @classmethod
     def from_json(cls, payload: str | bytes) -> MissionStatusMessage:
@@ -139,9 +147,12 @@ class VehicleStatusMessage(BaseMessage):
     """Published by Vehicle on ``vehicle/{vehicle_id}/status``."""
 
     vehicle_id: str = ""
-    state: str = "idle"  # idle | executing | paused | error
+    state: VehicleState = VehicleState.IDLE
     current_waypoint_idx: int = 0
     mission_id: str = ""
+
+    def __post_init__(self):
+        self.state = VehicleState(self.state)
 
     @classmethod
     def from_json(cls, payload: str | bytes) -> VehicleStatusMessage:

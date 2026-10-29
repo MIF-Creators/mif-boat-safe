@@ -14,8 +14,9 @@ import math
 import threading
 import time
 
+from system.common.enums import MissionStatus
 from system.vehicle.shared_state import SharedState
-from system.vehicle.services.drive_service import DriveService
+from system.vehicle.services.drive_service import DriveCommand, DriveService
 from system.vehicle.services.obstacle_avoidance import ObstacleAvoidanceService
 
 log = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ class NavigationService:
         try:
             self._tick()
         except Exception:
-            self._drive.send_command("stop")
+            self._drive.send_command(DriveCommand.STOP)
             if not self._tick_failing:
                 log.exception("Navigation tick failed, stopping motors")
                 self._tick_failing = True
@@ -85,8 +86,8 @@ class NavigationService:
 
     def _tick(self):
         mission = self._shared.get_mission()
-        if mission.status != "executing":
-            self._drive.send_command("stop")
+        if mission.status != MissionStatus.EXECUTING:
+            self._drive.send_command(DriveCommand.STOP)
             return
 
         wp = self._shared.get_current_waypoint()
@@ -97,14 +98,14 @@ class NavigationService:
         # regardless of drift or stale position.
         remaining = self._shared.wait_remaining()
         if remaining is not None:
-            self._drive.send_command("stop")
+            self._drive.send_command(DriveCommand.STOP)
             if remaining <= 0:
                 self._complete_waypoint(mission)
             return
 
         pos = self._shared.get_position()
         if not pos.valid:
-            self._drive.send_command("stop")
+            self._drive.send_command(DriveCommand.STOP)
             return
 
         target_x = wp["x"]
@@ -121,7 +122,7 @@ class NavigationService:
             if action == "wait":
                 duration = params.get("duration", 0)
                 if duration > 0:
-                    self._drive.send_command("stop")
+                    self._drive.send_command(DriveCommand.STOP)
                     self._shared.start_wait(
                         mission.mission_id,
                         mission.current_waypoint_idx,
@@ -130,7 +131,7 @@ class NavigationService:
                     return
 
             if action == "stop":
-                self._drive.send_command("stop")
+                self._drive.send_command(DriveCommand.STOP)
 
             self._complete_waypoint(mission)
             return
@@ -140,11 +141,11 @@ class NavigationService:
         # Normalise to [-pi, pi]
         heading_error = math.atan2(math.sin(heading_error), math.cos(heading_error))
 
-        raw_cmd: str
+        raw_cmd: DriveCommand
         if abs(heading_error) > self._ang_tol:
-            raw_cmd = "left" if heading_error > 0 else "right"
+            raw_cmd = DriveCommand.LEFT if heading_error > 0 else DriveCommand.RIGHT
         else:
-            raw_cmd = "forward"
+            raw_cmd = DriveCommand.FORWARD
 
         cmd = self._avoidance.filter_command(raw_cmd)
         self._drive.send_command(cmd)
@@ -156,6 +157,6 @@ class NavigationService:
         if self._mission_svc:
             if idx + 1 >= len(mission.waypoints):
                 self._mission_svc.notify_completed(mission.mission_id, idx + 1)
-                self._drive.send_command("stop")
+                self._drive.send_command(DriveCommand.STOP)
             else:
                 self._mission_svc.notify_waypoint_reached(mission.mission_id, idx)
