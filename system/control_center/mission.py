@@ -65,13 +65,24 @@ class MissionManager:
             return MissionControlMessage(mission_id=am.mission_id, command=command)
 
     def update_status(
-        self, vehicle_id: str, event: MissionEvent, waypoint_idx: int = 0
-    ):
+        self,
+        vehicle_id: str,
+        mission_id: str,
+        event: MissionEvent,
+        waypoint_idx: int = 0,
+    ) -> bool:
+        """Apply a status event to the active mission of the vehicle.
+
+        Returns False and changes nothing if the event is about another
+        mission, e.g. a late ``completed`` of a replaced mission.
+        """
         with self._lock:
             am = self._missions.get(vehicle_id)
-            if am:
-                am.status = STATUS_AFTER_EVENT[event]
-                am.current_waypoint_idx = waypoint_idx
+            if am is None or am.mission_id != mission_id:
+                return False
+            am.status = STATUS_AFTER_EVENT[event]
+            am.current_waypoint_idx = waypoint_idx
+            return True
 
     def get_active(self, vehicle_id: str) -> ActiveMission | None:
         with self._lock:
