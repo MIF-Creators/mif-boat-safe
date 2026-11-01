@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 
 from system.common.enums import MissionStatus
+from system.common.messages import NeighborInfo, Waypoint
 
 
 @dataclass
@@ -19,17 +20,9 @@ class Position:
 
 
 @dataclass
-class NeighborPosition:
-    vehicle_id: str = ""
-    x: float = 0.0
-    y: float = 0.0
-    rotation: float = 0.0
-
-
-@dataclass
 class MissionState:
     mission_id: str = ""
-    waypoints: list[dict] = field(default_factory=list)
+    waypoints: list[Waypoint] = field(default_factory=list)
     current_waypoint_idx: int = 0
     status: MissionStatus = MissionStatus.IDLE
     wait_until: float | None = (
@@ -48,7 +41,7 @@ class SharedState:
         self._lock = threading.Lock()
         self._position = Position()
         self._position_time: float | None = None
-        self._neighbors: list[NeighborPosition] = []
+        self._neighbors: list[NeighborInfo] = []
         self._mission = MissionState()
 
     # -- position ----------------------------------------------------------
@@ -76,25 +69,17 @@ class SharedState:
 
     # -- neighbors ---------------------------------------------------------
 
-    def update_neighbors(self, neighbors: list[dict]):
+    def update_neighbors(self, neighbors: list[NeighborInfo]):
         with self._lock:
-            self._neighbors = [
-                NeighborPosition(
-                    vehicle_id=n.get("vehicle_id", ""),
-                    x=n.get("x", 0),
-                    y=n.get("y", 0),
-                    rotation=n.get("rotation", 0),
-                )
-                for n in neighbors
-            ]
+            self._neighbors = list(neighbors)
 
-    def get_neighbors(self) -> list[NeighborPosition]:
+    def get_neighbors(self) -> list[NeighborInfo]:
         with self._lock:
             return list(self._neighbors)
 
     # -- mission -----------------------------------------------------------
 
-    def set_mission(self, mission_id: str, waypoints: list[dict]):
+    def set_mission(self, mission_id: str, waypoints: list[Waypoint]):
         with self._lock:
             self._mission.mission_id = mission_id
             self._mission.waypoints = list(waypoints)
@@ -139,11 +124,12 @@ class SharedState:
             if status != MissionStatus.EXECUTING:
                 self._mission.wait_until = None
 
-    def get_current_waypoint(self) -> dict | None:
+    def get_current_waypoint(self) -> Waypoint | None:
         with self._lock:
             idx = self._mission.current_waypoint_idx
             if 0 <= idx < len(self._mission.waypoints):
-                return dict(self._mission.waypoints[idx])
+                # Waypoint is frozen, no copy needed.
+                return self._mission.waypoints[idx]
             return None
 
     def start_wait(self, mission_id: str, idx: int, duration: float) -> bool:

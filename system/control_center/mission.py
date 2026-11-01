@@ -7,7 +7,7 @@ import uuid
 from dataclasses import dataclass, field
 
 from system.common.enums import MissionCommand, MissionEvent, MissionStatus
-from system.common.messages import MissionMessage, MissionControlMessage
+from system.common.messages import MissionMessage, MissionControlMessage, Waypoint
 
 # Mission status after an event from the vehicle.
 STATUS_AFTER_EVENT = {
@@ -26,7 +26,7 @@ STATUS_AFTER_EVENT = {
 class ActiveMission:
     mission_id: str = ""
     vehicle_id: str = ""
-    waypoints: list[dict] = field(default_factory=list)
+    waypoints: list[Waypoint] = field(default_factory=list)
     status: MissionStatus = MissionStatus.PENDING
     current_waypoint_idx: int = 0
 
@@ -39,7 +39,11 @@ class MissionManager:
         self._missions: dict[str, ActiveMission] = {}  # vehicle_id -> ActiveMission
 
     def create_mission(self, vehicle_id: str, waypoints: list[dict]) -> MissionMessage:
-        """Build a MissionMessage and register it internally."""
+        """Build a MissionMessage and register it internally.
+
+        Raises ``ValidationError`` for waypoints of a wrong shape; nothing
+        is registered then.
+        """
         mid = str(uuid.uuid4())
         msg = MissionMessage(
             mission_id=mid,
@@ -50,7 +54,7 @@ class MissionManager:
             self._missions[vehicle_id] = ActiveMission(
                 mission_id=mid,
                 vehicle_id=vehicle_id,
-                waypoints=waypoints,
+                waypoints=msg.waypoints,
                 status=MissionStatus.PENDING,
             )
         return msg
@@ -105,7 +109,10 @@ class MissionManager:
                     "vehicle_id": am.vehicle_id,
                     "status": am.status,
                     "current_waypoint_idx": am.current_waypoint_idx,
-                    "waypoints": am.waypoints,
+                    "waypoints": [
+                        wp.model_dump(mode="json", exclude_none=True)
+                        for wp in am.waypoints
+                    ],
                 }
                 for vid, am in self._missions.items()
             }
