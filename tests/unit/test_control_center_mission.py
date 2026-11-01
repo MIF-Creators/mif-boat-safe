@@ -1,6 +1,8 @@
 import pytest
+from pydantic import ValidationError
 
-from system.common.enums import MissionEvent, MissionStatus
+from system.common.enums import MissionEvent, MissionStatus, WaypointAction
+from system.common.messages import Waypoint
 from system.control_center.mission import MissionManager
 
 
@@ -124,3 +126,112 @@ def test_unknown_event_from_mqtt_is_ignored(caplog):
         MissionStatus.PENDING
     )
     assert "in_progress" in caplog.text
+
+
+def test_created_mission_keeps_typed_waypoints():
+    # Arrange
+    manager = MissionManager()
+
+    # Act
+    manager.create_mission("vehicle_0", [{"x": 1, "y": 2, "action": "stop"}])
+
+    # Assert
+    assert manager.get_active("vehicle_0").waypoints == [
+        Waypoint(x=1, y=2, action=WaypointAction.STOP)
+    ]
+    assert manager.get_all()["vehicle_0"]["waypoints"] == [
+        {"x": 1.0, "y": 2.0, "action": "stop", "params": {}}
+    ]
+
+
+@pytest.mark.parametrize(
+    "waypoints",
+    [
+        [{"y": 2}],
+        [{"x": "1", "y": 2}],
+        [{"x": 1, "y": 2, "action": "jump"}],
+    ],
+)
+def test_waypoints_of_wrong_shape_are_not_registered(waypoints):
+    # Arrange
+    manager = MissionManager()
+
+    # Act
+    with pytest.raises(ValidationError):
+        manager.create_mission("vehicle_0", waypoints)
+
+    # Assert
+    assert manager.get_active("vehicle_0") is None
+
+
+def test_invalid_mission_status_from_mqtt_is_ignored(caplog):
+    # Arrange
+    from system.control_center import main as cc_main
+
+    mission_id = cc_main.mission_mgr.create_mission(
+        "vehicle_bad_status", [{"x": 1, "y": 1}]
+    ).mission_id
+
+    # Act
+    cc_main._on_mission_status(
+        {
+            "mission_id": mission_id,
+            "vehicle_id": "vehicle_bad_status",
+            "status": "completed",
+            "current_waypoint_idx": "last",
+        }
+    )
+
+    # Assert
+    assert cc_main.mission_mgr.get_active("vehicle_bad_status").status is (
+        MissionStatus.PENDING
+    )
+    assert "current_waypoint_idx" in caplog.text
+
+
+def test_valid_telemetry_from_mqtt_is_stored():
+    # Arrange
+    from system.control_center import main as cc_main
+
+    # Act
+    cc_main._on_position(
+        {"vehicle_id": "vehicle_tm", "x": 1, "y": 2, "rotation": 0, "extra": 1}
+    )
+    cc_main._on_vehicle_status({"vehicle_id": "vehicle_tm", "state": "idle"})
+
+    # Assert
+    assert cc_main._vehicle_positions["vehicle_tm"]["x"] == 1.0
+    assert "extra" not in cc_main._vehicle_positions["vehicle_tm"]
+    assert cc_main._vehicle_statuses["vehicle_tm"]["state"] == "idle"
+
+
+@pytest.mark.parametrize(
+    "callback, data",
+    [
+        ("_on_position", {"vehicle_id": "vehicle_bad", "x": "1", "y": 2}),
+        ("_on_vehicle_status", {"vehicle_id": "vehicle_bad", "state": "flying"}),
+    ],
+)
+def test_invalid_telemetry_from_mqtt_is_ignored(callback, data):
+    # Arrange
+    from system.control_center import main as cc_main
+
+    # Act
+    getattr(cc_main, callback)(data)
+
+    # Assert
+    assert "vehicle_bad" not in cc_main._vehicle_positions
+    assert "vehicle_bad" not in cc_main._vehicle_statuses
+
+
+def test_invalid_map_from_mqtt_is_ignored(monkeypatch):
+    # Arrange
+    from system.control_center import main as cc_main
+
+    monkeypatch.setattr(cc_main, "_map_data", {"width": 10})
+
+    # Act
+    cc_main._on_map_response({"obstacles": [{"type": "triangle"}]})
+
+    # Assert
+    assert cc_main._map_data == {"width": 10}

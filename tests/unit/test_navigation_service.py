@@ -2,9 +2,14 @@ import logging
 import time
 import pytest
 
+from system.common.enums import WaypointAction
+from system.common.messages import Waypoint
 from system.vehicle.services.navigation_service import NavigationService
 from system.vehicle.shared_state import SharedState
 from tests.unit.fakes import FakeClock
+
+# Bypasses validation, so reading its "x" fails inside the tick.
+BROKEN_WAYPOINT = Waypoint.model_construct(y=10)
 
 
 class FakeDrive:
@@ -55,7 +60,7 @@ def _create_service(shared, drive=None, avoidance=None, mission_svc=None):
 def test_tick_sends_stop_when_mission_not_executing(status):
     # Arrange
     shared_state = SharedState()
-    shared_state.set_mission("m-1", [{"x": 10, "y": 10}])
+    shared_state.set_mission("m-1", [Waypoint(x=10, y=10)])
     shared_state.set_mission_status(status)
     shared_state.update_position(0, 0, 0)
     drive = FakeDrive()
@@ -72,7 +77,7 @@ def test_tick_sends_stop_when_mission_not_executing(status):
 def test_moving_vehicle_stops_after_pause_or_cancel(status):
     # Arrange
     shared_state = SharedState()
-    shared_state.set_mission("m-1", [{"x": 10, "y": 0}])
+    shared_state.set_mission("m-1", [Waypoint(x=10, y=0)])
     shared_state.update_position(0, 0, 0)
     drive = FakeDrive()
     nav_service = _create_service(shared_state, drive=drive)
@@ -89,7 +94,7 @@ def test_moving_vehicle_stops_after_pause_or_cancel(status):
 
 def test_tick_advances_waypoint_and_notifies_completion():
     shared = SharedState()
-    shared.set_mission("m-done", [{"x": 0.1, "y": 0.1, "action": "stop"}])
+    shared.set_mission("m-done", [Waypoint(x=0.1, y=0.1, action=WaypointAction.STOP)])
     shared.update_position(0.0, 0.0, 0.0)
 
     drive = FakeDrive()
@@ -106,7 +111,7 @@ def test_tick_advances_waypoint_and_notifies_completion():
 def test_tick_sends_stop_when_position_never_received():
     # Arrange
     state = SharedState()
-    state.set_mission("m-1", [{"x": 5, "y": 5}])
+    state.set_mission("m-1", [Waypoint(x=5, y=5)])
     drive = FakeDrive()
     service = _create_service(state, drive=drive)
 
@@ -121,7 +126,7 @@ def test_moving_vehicle_stops_when_position_becomes_stale():
     # Arrange
     clock = FakeClock()
     state = SharedState(position_timeout=1.0, clock=clock)
-    state.set_mission("m-1", [{"x": 10, "y": 0}])
+    state.set_mission("m-1", [Waypoint(x=10, y=0)])
     state.update_position(0, 0, 0)
     drive = FakeDrive()
     service = _create_service(state, drive=drive)
@@ -139,7 +144,7 @@ def test_moving_vehicle_stops_when_position_becomes_stale():
 def test_safe_tick_stops_motors_on_error():
     # Arrange
     state = SharedState()
-    state.set_mission("m-1", [{"y": 10}])  # broken waypoint: no "x"
+    state.set_mission("m-1", [BROKEN_WAYPOINT])
     state.update_position(0, 0, 0)
     drive = FakeDrive()
     service = _create_service(state, drive=drive)
@@ -154,7 +159,7 @@ def test_safe_tick_stops_motors_on_error():
 def test_repeated_error_is_longer_once(caplog):
     # Arrange
     state = SharedState()
-    state.set_mission("m-1", [{"y": 10}])
+    state.set_mission("m-1", [BROKEN_WAYPOINT])
     state.update_position(0, 0, 0)
     service = _create_service(state)
 
@@ -171,7 +176,7 @@ def test_repeated_error_is_longer_once(caplog):
 def test_navigation_works_again_after_error():
     # Arrange
     state = SharedState()
-    state.set_mission("m-1", [{"y": 5}])
+    state.set_mission("m-1", [BROKEN_WAYPOINT])
     state.update_position(0, 0, 0)
     drive = FakeDrive()
     service = _create_service(state, drive=drive)
@@ -179,7 +184,7 @@ def test_navigation_works_again_after_error():
     assert drive.commands[-1] == "stop"  # precondition
 
     # Act
-    state.set_mission("m-2", [{"x": 10, "y": 0}])
+    state.set_mission("m-2", [Waypoint(x=10, y=0)])
     service._safe_tick()
 
     # Assert
@@ -189,7 +194,7 @@ def test_navigation_works_again_after_error():
 def test_navigation_thread_survives_errors():
     # Arrange
     state = SharedState()
-    state.set_mission("m-1", [{"y": 5}])
+    state.set_mission("m-1", [BROKEN_WAYPOINT])
     state.update_position(0, 0, 0)
     service = _create_service(state)
 
@@ -219,8 +224,10 @@ def _waiting_vehicle(clock, duration=5.0, mission_svc=None):
     state.set_mission(
         "m-1",
         [
-            {"x": 0, "y": 0, "action": "wait", "params": {"duration": duration}},
-            {"x": 10, "y": 0},
+            Waypoint(
+                x=0, y=0, action=WaypointAction.WAIT, params={"duration": duration}
+            ),
+            Waypoint(x=10, y=0),
         ],
     )
     state.update_position(0, 0, 0)
@@ -343,7 +350,7 @@ def test_new_mission_resets_wait(no_sleep):
     service._tick()
 
     # Act
-    state.set_mission("m-2", [{"x": 10, "y": 0}])
+    state.set_mission("m-2", [Waypoint(x=10, y=0)])
     _tick_with_fresh_position(state, service)
 
     # Assert
@@ -363,7 +370,7 @@ def test_wait_after_cancel_does_not_carry_over_to_new_mission(no_sleep):
     service._tick()
 
     # Act
-    state.set_mission("m-2", [{"x": 10, "y": 0}])
+    state.set_mission("m-2", [Waypoint(x=10, y=0)])
     _tick_with_fresh_position(state, service)
 
     # Assert
@@ -402,9 +409,9 @@ def test_new_mission_waypoint_not_skipped_when_replaced_mid_tick():
     # Arrange
     state = MissionReplacingState(
         replace_on="get_position",
-        new_waypoints=[{"x": 10, "y": 0}],
+        new_waypoints=[Waypoint(x=10, y=0)],
     )
-    state.set_mission("m-1", [{"x": 0, "y": 0}, {"x": 5, "y": 5}])
+    state.set_mission("m-1", [Waypoint(x=0, y=0), Waypoint(x=5, y=5)])
     state.update_position(0, 0, 0)  # vehicle at m-1 waypoint 0
     mission_svc = FakeMissionService()
     service = _create_service(state, mission_svc=mission_svc)
@@ -424,11 +431,11 @@ def test_old_wait_not_started_on_new_mission_when_replaced_mid_tick():
     # Arrange
     state = MissionReplacingState(
         replace_on="get_position",
-        new_waypoints=[{"x": 10, "y": 0}],
+        new_waypoints=[Waypoint(x=10, y=0)],
         clock=FakeClock(),
     )
     state.set_mission(
-        "m-1", [{"x": 0, "y": 0, "action": "wait", "params": {"duration": 5}}]
+        "m-1", [Waypoint(x=0, y=0, action=WaypointAction.WAIT, params={"duration": 5})]
     )
     state.update_position(0, 0, 0)
     service = _create_service(state)
@@ -445,9 +452,9 @@ def test_completion_reported_for_finished_mission_when_replaced_after_advance():
     # Arrange
     state = MissionReplacingState(
         replace_on="advance_waypoint",
-        new_waypoints=[{"x": 10, "y": 0}],
+        new_waypoints=[Waypoint(x=10, y=0)],
     )
-    state.set_mission("m-1", [{"x": 0, "y": 0}])
+    state.set_mission("m-1", [Waypoint(x=0, y=0)])
     state.update_position(0, 0, 0)
     mission_svc = FakeMissionService()
     service = _create_service(state, mission_svc=mission_svc)

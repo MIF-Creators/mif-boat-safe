@@ -14,7 +14,7 @@ import math
 import threading
 import time
 
-from system.common.enums import MissionStatus
+from system.common.enums import MissionStatus, WaypointAction
 from system.vehicle.shared_state import SharedState
 from system.vehicle.services.drive_service import DriveCommand, DriveService
 from system.vehicle.services.obstacle_avoidance import ObstacleAvoidanceService
@@ -108,29 +108,25 @@ class NavigationService:
             self._drive.send_command(DriveCommand.STOP)
             return
 
-        target_x = wp["x"]
-        target_y = wp["y"]
+        target_x = wp.x
+        target_y = wp.y
 
         dx = target_x - pos.x
         dy = target_y - pos.y
         dist = math.hypot(dx, dy)
 
         if dist < self._pos_tol:
-            action = wp.get("action", "none")
-            params = wp.get("params", {})
+            if wp.action is WaypointAction.WAIT:
+                # validate_mission() guarantees duration > 0.
+                self._drive.send_command(DriveCommand.STOP)
+                self._shared.start_wait(
+                    mission.mission_id,
+                    mission.current_waypoint_idx,
+                    wp.params.duration,
+                )
+                return
 
-            if action == "wait":
-                duration = params.get("duration", 0)
-                if duration > 0:
-                    self._drive.send_command(DriveCommand.STOP)
-                    self._shared.start_wait(
-                        mission.mission_id,
-                        mission.current_waypoint_idx,
-                        duration,
-                    )
-                    return
-
-            if action == "stop":
+            if wp.action is WaypointAction.STOP:
                 self._drive.send_command(DriveCommand.STOP)
 
             self._complete_waypoint(mission)

@@ -5,9 +5,17 @@ import threading
 import time
 
 from flask import Flask, jsonify, request, render_template
+from pydantic import ValidationError
 
 from system.common.config import ControlCenterConfig, component_dotenv_path
-from system.common.enums import MissionCommand, MissionEvent
+from system.common.enums import MissionCommand
+from system.common.messages import (
+    MapMessage,
+    MissionStatusMessage,
+    PositionMessage,
+    VehicleStatusMessage,
+    describe_error,
+)
 from system.control_center.mqtt_client import ControlCenterMqtt
 from system.control_center.mission import MissionManager
 
@@ -126,42 +134,60 @@ def api_map_refresh():
 # ---------------------------------------------------------------------------
 
 
+# Each callback validates its message itself; parsing moves into the
+# shared MQTT client in task 5.1 (#48).
+
+
 def _on_position(data: dict):
-    vid = data.get("vehicle_id", "")
+    try:
+        pos = PositionMessage.model_validate(data)
+    except ValidationError as e:
+        log.warning("Ignoring invalid position %s: %s", data, describe_error(e))
+        return
     with _lock:
-        _vehicle_positions[vid] = data
+        _vehicle_positions[pos.vehicle_id] = pos.model_dump(mode="json")
 
 
 def _on_mission_status(data: dict):
-    vid = data.get("vehicle_id", "")
     try:
-        event = MissionEvent(data.get("status"))
-    except ValueError:
-        log.warning("Unknown mission event from %s: %s", vid, data.get("status"))
+        status = MissionStatusMessage.model_validate(data)
+    except ValidationError as e:
+        log.warning("Ignoring invalid mission status %s: %s", data, describe_error(e))
         return
-    mission_id = data.get("mission_id", "")
     if not mission_mgr.update_status(
-        vid, mission_id, event, data.get("current_waypoint_idx", 0)
+        status.vehicle_id,
+        status.mission_id,
+        status.status,
+        status.current_waypoint_idx,
     ):
         log.warning(
             "Ignoring %s from %s for mission %s: not its active mission",
-            event,
-            vid,
-            mission_id,
+            status.status,
+            status.vehicle_id,
+            status.mission_id,
         )
 
 
 def _on_vehicle_status(data: dict):
-    vid = data.get("vehicle_id", "")
+    try:
+        status = VehicleStatusMessage.model_validate(data)
+    except ValidationError as e:
+        log.warning("Ignoring invalid vehicle status %s: %s", data, describe_error(e))
+        return
     with _lock:
-        _vehicle_statuses[vid] = data
+        _vehicle_statuses[status.vehicle_id] = status.model_dump(mode="json")
 
 
 def _on_map_response(data: dict):
     global _map_data
+    try:
+        map_msg = MapMessage.model_validate(data)
+    except ValidationError as e:
+        log.warning("Ignoring invalid map %s: %s", data, describe_error(e))
+        return
     with _lock:
-        _map_data = data
-    log.info("Map data received (%sx%s)", data.get("width"), data.get("height"))
+        _map_data = map_msg.model_dump(mode="json")
+    log.info("Map data received (%sx%s)", map_msg.width, map_msg.height)
 
 
 # ---------------------------------------------------------------------------

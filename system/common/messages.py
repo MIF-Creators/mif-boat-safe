@@ -1,6 +1,11 @@
-"""Dataclass message schemas for MQTT communication.
+"""Message schemas for MQTT communication.
 
-All messages are serialized to JSON for transport over MQTT.
+All messages are serialized to JSON for transport over MQTT. The models
+describe only the shape of the data: parsing a message with a missing or
+wrongly typed field raises ``pydantic.ValidationError``. Rules about the
+values (e.g. a mission needs waypoints) live in ``validation.py``.
+Unknown fields are ignored, so a newer sender can add fields without
+breaking older receivers.
 """
 
 from __future__ import annotations
@@ -8,9 +13,30 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from dataclasses import dataclass, field, asdict
+from typing import Annotated
 
-from .enums import MissionCommand, MissionEvent, VehicleState
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
+
+from .enums import (
+    MissionCommand,
+    MissionEvent,
+    ObstacleShape,
+    VehicleState,
+    WaypointAction,
+)
+
+# A finite number; JSON strings and booleans are not accepted.
+Number = Annotated[float, Field(strict=True, allow_inf_nan=False)]
+# An integer; JSON strings, floats and booleans are not accepted.
+Integer = Annotated[int, Field(strict=True)]
+
+
+def describe_error(error: ValidationError) -> str:
+    """One-line description of what is wrong, e.g. for a rejection reply."""
+    return "; ".join(
+        f"{'.'.join(str(p) for p in e['loc']) or 'message'}: {e['msg']}"
+        for e in error.errors()
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -18,21 +44,30 @@ from .enums import MissionCommand, MissionEvent, VehicleState
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class BaseMessage:
+class FrozenModel(BaseModel):
+    """Part of a message: immutable, so it can be shared without copying."""
+
+    model_config = ConfigDict(frozen=True)
+
+
+class BaseMessage(BaseModel):
     """Every message carries a timestamp."""
 
-    timestamp: float = field(default_factory=time.time)
+    timestamp: Number = Field(default_factory=time.time)
 
     def to_json(self) -> str:
-        return json.dumps(asdict(self), ensure_ascii=False)
+        # exclude_none: unset optional fields (e.g. params.duration) are omitted.
+        return json.dumps(
+            self.model_dump(mode="json", exclude_none=True), ensure_ascii=False
+        )
 
     @classmethod
-    def from_json(cls, payload: str | bytes) -> BaseMessage:
-        if isinstance(payload, bytes):
-            payload = payload.decode()
-        data = json.loads(payload)
-        return cls(**data)
+    def from_json(cls, payload: str | bytes):
+        """Parse and validate; raises ``ValidationError``, also for invalid JSON.
+
+        Returns an instance of the class it is called on.
+        """
+        return cls.model_validate_json(payload)
 
 
 # ---------------------------------------------------------------------------
@@ -40,30 +75,21 @@ class BaseMessage:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class NeighborInfo:
+class NeighborInfo(FrozenModel):
     vehicle_id: str
-    x: float
-    y: float
-    rotation: float
+    x: Number
+    y: Number
+    rotation: Number
 
 
-@dataclass
 class PositionMessage(BaseMessage):
     """Published by Navigation Server on ``nav/{vehicle_id}/position``."""
 
-    vehicle_id: str = ""
-    x: float = 0.0
-    y: float = 0.0
-    rotation: float = 0.0
-    neighbors: list[dict] = field(default_factory=list)
-
-    @classmethod
-    def from_json(cls, payload: str | bytes) -> PositionMessage:
-        if isinstance(payload, bytes):
-            payload = payload.decode()
-        data = json.loads(payload)
-        return cls(**data)
+    vehicle_id: str
+    x: Number
+    y: Number
+    rotation: Number
+    neighbors: list[NeighborInfo] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -71,70 +97,42 @@ class PositionMessage(BaseMessage):
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class Waypoint:
-    x: float
-    y: float
-    action: str = "none"  # "none" | "wait" | "stop"
-    params: dict = field(default_factory=dict)
+class WaypointParams(FrozenModel):
+    duration: Number | None = None  # seconds, for the "wait" action
 
 
-@dataclass
+class Waypoint(FrozenModel):
+    """Point of a mission route."""
+
+    x: Number
+    y: Number
+    action: WaypointAction = WaypointAction.NONE
+    params: WaypointParams = WaypointParams()
+
+
 class MissionMessage(BaseMessage):
     """Sent by Control Center on ``vehicle/{vehicle_id}/mission/assign``."""
 
-    mission_id: str = field(default_factory=lambda: str(uuid.uuid4()))
+    mission_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     vehicle_id: str = ""
-    waypoints: list[dict] = field(default_factory=list)
-
-    @classmethod
-    def from_json(cls, payload: str | bytes) -> MissionMessage:
-        if isinstance(payload, bytes):
-            payload = payload.decode()
-        data = json.loads(payload)
-        return cls(**data)
-
-    def get_waypoints(self) -> list[Waypoint]:
-        return [Waypoint(**wp) for wp in self.waypoints]
+    waypoints: list[Waypoint]
 
 
-@dataclass
 class MissionControlMessage(BaseMessage):
     """Sent by Control Center on ``vehicle/{vehicle_id}/mission/control``."""
 
     mission_id: str = ""
-    command: MissionCommand = field(kw_only=True)
-
-    def __post_init__(self):
-        self.command = MissionCommand(self.command)
-
-    @classmethod
-    def from_json(cls, payload: str | bytes) -> MissionControlMessage:
-        if isinstance(payload, bytes):
-            payload = payload.decode()
-        data = json.loads(payload)
-        return cls(**data)
+    command: MissionCommand
 
 
-@dataclass
 class MissionStatusMessage(BaseMessage):
     """Published by Vehicle on ``vehicle/{vehicle_id}/mission/status``."""
 
     mission_id: str = ""
     vehicle_id: str = ""
-    status: MissionEvent = field(kw_only=True)
-    current_waypoint_idx: int = 0
+    status: MissionEvent
+    current_waypoint_idx: Integer = 0
     detail: str = ""
-
-    def __post_init__(self):
-        self.status = MissionEvent(self.status)
-
-    @classmethod
-    def from_json(cls, payload: str | bytes) -> MissionStatusMessage:
-        if isinstance(payload, bytes):
-            payload = payload.decode()
-        data = json.loads(payload)
-        return cls(**data)
 
 
 # ---------------------------------------------------------------------------
@@ -142,24 +140,13 @@ class MissionStatusMessage(BaseMessage):
 # ---------------------------------------------------------------------------
 
 
-@dataclass
 class VehicleStatusMessage(BaseMessage):
     """Published by Vehicle on ``vehicle/{vehicle_id}/status``."""
 
     vehicle_id: str = ""
     state: VehicleState = VehicleState.IDLE
-    current_waypoint_idx: int = 0
+    current_waypoint_idx: Integer = 0
     mission_id: str = ""
-
-    def __post_init__(self):
-        self.state = VehicleState(self.state)
-
-    @classmethod
-    def from_json(cls, payload: str | bytes) -> VehicleStatusMessage:
-        if isinstance(payload, bytes):
-            payload = payload.decode()
-        data = json.loads(payload)
-        return cls(**data)
 
 
 # ---------------------------------------------------------------------------
@@ -167,40 +154,24 @@ class VehicleStatusMessage(BaseMessage):
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class ObstacleInfo:
-    type: str  # "rectangle" | "circle"
-    x: float = 0.0
-    y: float = 0.0
-    width: float = 0.0
-    height: float = 0.0
-    radius: float = 0.0
+class ObstacleInfo(FrozenModel):
+    type: ObstacleShape
+    x: Number = 0.0
+    y: Number = 0.0
+    width: Number = 0.0
+    height: Number = 0.0
+    radius: Number = 0.0
 
 
-@dataclass
 class MapMessage(BaseMessage):
     """Sent by Navigation Server on ``control/map/response``."""
 
-    width: int = 100
-    height: int = 100
-    reference_markers: dict = field(default_factory=dict)
-    obstacles: list[dict] = field(default_factory=list)
-
-    @classmethod
-    def from_json(cls, payload: str | bytes) -> MapMessage:
-        if isinstance(payload, bytes):
-            payload = payload.decode()
-        data = json.loads(payload)
-        return cls(**data)
+    width: Integer = 100
+    height: Integer = 100
+    # Marker id -> (x, y) on the map.
+    reference_markers: dict[str, tuple[Number, Number]] = Field(default_factory=dict)
+    obstacles: list[ObstacleInfo] = Field(default_factory=list)
 
 
-@dataclass
 class MapRequestMessage(BaseMessage):
     """Sent by Control Center on ``control/map/request``."""
-
-    @classmethod
-    def from_json(cls, payload: str | bytes) -> MapRequestMessage:
-        if isinstance(payload, bytes):
-            payload = payload.decode()
-        data = json.loads(payload)
-        return cls(**data)

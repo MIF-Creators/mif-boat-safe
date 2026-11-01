@@ -63,3 +63,18 @@ class MissionCommand(StrValueEnum):
     CANCEL = "cancel"
     PAUSE = "pause"
     RESUME = "resume"
+
+
+class WaypointAction(StrValueEnum):
+    """What the vehicle does on reaching a waypoint."""
+
+    NONE = "none"
+    WAIT = "wait"
+    STOP = "stop"
+
+
+class ObstacleShape(StrValueEnum):
+    """Shape of a static obstacle on the map."""
+
+    RECTANGLE = "rectangle"
+    CIRCLE = "circle"

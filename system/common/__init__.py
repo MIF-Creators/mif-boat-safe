@@ -10,7 +10,14 @@ from .messages import (
     MapRequestMessage,
     VehicleStatusMessage,
 )
-from .enums import MissionCommand, MissionEvent, MissionStatus, VehicleState
+from .enums import (
+    MissionCommand,
+    MissionEvent,
+    MissionStatus,
+    ObstacleShape,
+    VehicleState,
+    WaypointAction,
+)
 from .topics import Topics
 from .config import (
     MqttConfig,
@@ -34,7 +41,9 @@ __all__ = [
     "MissionCommand",
     "MissionEvent",
     "MissionStatus",
+    "ObstacleShape",
     "VehicleState",
+    "WaypointAction",
     "Topics",
     "MqttConfig",
     "ControlCenterConfig",

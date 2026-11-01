@@ -1,6 +1,8 @@
 import pytest
 import threading
 
+from system.common.enums import WaypointAction
+from system.common.messages import NeighborInfo, Waypoint
 from system.vehicle.shared_state import SharedState
 from tests.unit.fakes import FakeClock
 
@@ -69,19 +71,21 @@ def test_new_update_makes_stale_position_valid_again():
 
 def test_mission_lifecycle_and_current_waypoint():
     shared = SharedState()
-    waypoints = [{"x": 1, "y": 2}, {"x": 3, "y": 4, "action": "stop"}]
+    waypoints = [Waypoint(x=1, y=2), Waypoint(x=3, y=4, action=WaypointAction.STOP)]
     shared.set_mission("m-1", waypoints)
 
     mission = shared.get_mission()
     assert mission.mission_id == "m-1"
     assert mission.status == "executing"
     assert mission.current_waypoint_idx == 0
-    assert shared.get_current_waypoint() == {"x": 1, "y": 2}
+    assert shared.get_current_waypoint() == Waypoint(x=1, y=2)
 
     shared.advance_waypoint("m-1", 0)
     assert shared.get_mission().current_waypoint_idx == 1
     assert shared.get_mission().status == "executing"
-    assert shared.get_current_waypoint() == {"x": 3, "y": 4, "action": "stop"}
+    assert shared.get_current_waypoint() == Waypoint(
+        x=3, y=4, action=WaypointAction.STOP
+    )
 
     shared.advance_waypoint("m-1", 1)
     assert shared.get_mission().status == "completed"
@@ -90,13 +94,13 @@ def test_mission_lifecycle_and_current_waypoint():
 
 def test_thread_safety_smoke_for_reads_and_writes():
     shared = SharedState()
-    shared.set_mission("m-thread", [{"x": 10, "y": 20}])
+    shared.set_mission("m-thread", [Waypoint(x=10, y=20)])
 
     def writer():
         for i in range(200):
             shared.update_position(i, i + 1, i / 10)
             shared.update_neighbors(
-                [{"vehicle_id": "v2", "x": i, "y": i, "rotation": 0.0}]
+                [NeighborInfo(vehicle_id="v2", x=i, y=i, rotation=0.0)]
             )
 
     def reader():
@@ -123,7 +127,7 @@ def test_thread_safety_smoke_for_reads_and_writes():
 def test_no_wait_by_default():
     # Arrange
     state = SharedState()
-    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2)])
 
     # Assert
     assert state.wait_remaining() is None
@@ -134,7 +138,7 @@ def test_wait_remaining_counts_down():
     # Arrange
     clock = FakeClock()
     state = SharedState(clock=clock)
-    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2)])
 
     # Act
     state.start_wait("m-1", 0, 5.0)
@@ -149,7 +153,7 @@ def test_wait_remaining_is_not_positive_after_duration():
     # Arrange
     clock = FakeClock()
     state = SharedState(clock=clock)
-    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2)])
     state.start_wait("m-1", 0, 5.0)
 
     # Act
@@ -162,11 +166,11 @@ def test_wait_remaining_is_not_positive_after_duration():
 def test_new_mission_resets_wait():
     # Arrange
     state = SharedState(clock=FakeClock())
-    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2)])
     state.start_wait("m-1", 0, 5.0)
 
     # Act
-    state.set_mission("m-2", [{"x": 3, "y": 4}])
+    state.set_mission("m-2", [Waypoint(x=3, y=4)])
 
     # Assert
     assert state.wait_remaining() is None
@@ -175,7 +179,7 @@ def test_new_mission_resets_wait():
 def test_advance_waypoint_resets_wait():
     # Arrange
     state = SharedState(clock=FakeClock())
-    state.set_mission("m-1", [{"x": 1, "y": 2}, {"x": 3, "y": 4}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2), Waypoint(x=3, y=4)])
     state.start_wait("m-1", 0, 5.0)
 
     # Act
@@ -191,7 +195,7 @@ def test_advance_waypoint_resets_wait():
 def test_leaving_executing_status_resets_wait(status):
     # Arrange
     state = SharedState(clock=FakeClock())
-    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2)])
     state.start_wait("m-1", 0, 5.0)
 
     # Act
@@ -204,7 +208,7 @@ def test_leaving_executing_status_resets_wait(status):
 def test_executing_status_keeps_wait():
     # Arrange
     state = SharedState(clock=FakeClock())
-    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2)])
     state.start_wait("m-1", 0, 5.0)
 
     # Act
@@ -217,7 +221,7 @@ def test_executing_status_keeps_wait():
 def test_advance_waypoint_applies_to_matching_mission():
     # Arrange
     state = SharedState()
-    state.set_mission("m-1", [{"x": 1, "y": 2}, {"x": 3, "y": 4}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2), Waypoint(x=3, y=4)])
 
     # Act
     advanced = state.advance_waypoint("m-1", 0)
@@ -231,7 +235,7 @@ def test_advance_waypoint_applies_to_matching_mission():
 def test_advance_waypoint_ignores_stale_mission_or_waypoint(mission_id, idx):
     # Arrange
     state = SharedState()
-    state.set_mission("m-1", [{"x": 1, "y": 2}, {"x": 3, "y": 4}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2), Waypoint(x=3, y=4)])
 
     # Act
     advanced = state.advance_waypoint(mission_id, idx)
@@ -245,7 +249,7 @@ def test_advance_waypoint_ignores_stale_mission_or_waypoint(mission_id, idx):
 def test_start_wait_applies_to_matching_mission():
     # Arrange
     state = SharedState(clock=FakeClock())
-    state.set_mission("m-1", [{"x": 1, "y": 2}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2)])
 
     # Act
     started = state.start_wait("m-1", 0, 5.0)
@@ -259,7 +263,7 @@ def test_start_wait_applies_to_matching_mission():
 def test_start_wait_ignores_stale_mission_or_waypoint(mission_id, idx):
     # Arrange
     state = SharedState(clock=FakeClock())
-    state.set_mission("m-1", [{"x": 1, "y": 2}, {"x": 3, "y": 4}])
+    state.set_mission("m-1", [Waypoint(x=1, y=2), Waypoint(x=3, y=4)])
 
     # Act
     started = state.start_wait(mission_id, idx, 5.0)
