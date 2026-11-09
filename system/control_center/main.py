@@ -11,11 +11,13 @@ from system.common.config import ControlCenterConfig, component_dotenv_path
 from system.common.enums import MissionCommand
 from system.common.messages import (
     MapMessage,
+    MissionMessage,
     MissionStatusMessage,
     PositionMessage,
     VehicleStatusMessage,
     describe_error,
 )
+from system.common.validation import validate_mission
 from system.control_center.mqtt_client import ControlCenterMqtt
 from system.control_center.mission import MissionManager
 
@@ -44,6 +46,7 @@ app = Flask(
     template_folder=os.path.join(os.path.dirname(__file__), "templates"),
     static_folder=os.path.join(os.path.dirname(__file__), "static"),
 )
+app.config["VEHICLE_IDS"] = ControlCenterConfig().vehicle_ids
 
 mqtt_client: ControlCenterMqtt | None = None
 
@@ -83,20 +86,33 @@ def api_missions():
 
 @app.route("/api/mission/send", methods=["POST"])
 def api_send_mission():
-    body = request.get_json(force=True)
-    vehicle_id = body.get("vehicle_id")
-    waypoints = body.get("waypoints", [])
-    if not vehicle_id or not waypoints:
-        return jsonify({"error": "vehicle_id and waypoints required"}), 400
+    body = request.get_json(force=True, silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
 
-    msg = mission_mgr.create_mission(vehicle_id, waypoints)
+    try:
+        mission = MissionMessage(
+            vehicle_id=body.get("vehicle_id"),
+            waypoints=body.get("waypoints"),
+        )
+    except ValidationError as e:
+        return jsonify({"error": describe_error(e)}), 400
+
+    vehicle_id = mission.vehicle_id
+    if vehicle_id not in app.config["VEHICLE_IDS"]:
+        return jsonify({"error": f"vehicle_id: unknown vehicle: {vehicle_id}"}), 400
+    errors = validate_mission(mission)
+    if errors:
+        return jsonify({"error": "; ".join(errors)}), 400
+
+    msg = mission_mgr.create_mission(vehicle_id, body["waypoints"])
     if mqtt_client:
         mqtt_client.send_mission(vehicle_id, msg.to_json())
     log.info(
         "Mission %s sent to %s (%d waypoints)",
         msg.mission_id,
         vehicle_id,
-        len(waypoints),
+        len(msg.waypoints),
     )
     return jsonify({"mission_id": msg.mission_id})
 
@@ -198,6 +214,7 @@ def _on_map_response(data: dict):
 def main():
     global mqtt_client
     cfg = ControlCenterConfig.load(env_path=component_dotenv_path(__file__))
+    app.config["VEHICLE_IDS"] = cfg.vehicle_ids
 
     mqtt_client = ControlCenterMqtt(cfg)
     mqtt_client.on_position(_on_position)
