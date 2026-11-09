@@ -78,11 +78,11 @@ class DriveService:
 
     def start(self):
         self._init_gpio()
+        self._running = True
         self._thread = threading.Thread(
             target=self._loop, daemon=True, name=self.__class__.__name__
         )
         self._thread.start()
-        self._running = True
         log.info(
             "DriveService started (GPIO=%s, duty=%d, timeout=%.2fs)",
             _HAS_GPIO,
