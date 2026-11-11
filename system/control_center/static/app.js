@@ -4,7 +4,9 @@
 "use strict";
 
 const POLL_MS = 300;
-const CANVAS_PX = 600;
+const CANVAS_W = 800;
+const CANVAS_H = 600;
+const PAD = 30;
 
 let mapData = null;      // {width, height, obstacles, reference_markers}
 let positions = {};       // vehicle_id -> {x, y, rotation}
@@ -17,8 +19,8 @@ const $ = (s) => document.querySelector(s);
 const canvas = $("#mapCanvas");
 const ctx = canvas.getContext("2d");
 
-canvas.width = CANVAS_PX;
-canvas.height = CANVAS_PX;
+canvas.width = CANVAS_W;
+canvas.height = CANVAS_H;
 
 // ---------------------------------------------------------------------------
 // Polling
@@ -52,43 +54,79 @@ poll();
 // Map drawing
 // ---------------------------------------------------------------------------
 
-function toCanvas(mx, my) {
-    const w = mapData ? mapData.width : 100;
-    const h = mapData ? mapData.height : 100;
-    const pad = 30;
-    const area = CANVAS_PX - pad * 2;
-    return [pad + (mx / w) * area, CANVAS_PX - pad - (my / h) * area];
+// Map units (cm after field calibration) -> canvas pixels: one scale for both
+// axes, so the field keeps its proportions; it is centred in the canvas.
+function mapSize() {
+    return mapData ? [mapData.width, mapData.height] : [100, 100];
 }
 
+function view() {
+    const [w, h] = mapSize();
+    const scale = Math.min((CANVAS_W - 2 * PAD) / w, (CANVAS_H - 2 * PAD) / h);
+    return {
+        w, h, scale,
+        left: (CANVAS_W - w * scale) / 2,
+        bottom: (CANVAS_H + h * scale) / 2,  // canvas y of map y = 0
+    };
+}
+
+function toCanvas(mx, my) {
+    const v = view();
+    return [v.left + mx * v.scale, v.bottom - my * v.scale];
+}
+
+// Exact inverse of toCanvas.
 function fromCanvas(cx, cy) {
-    const w = mapData ? mapData.width : 100;
-    const h = mapData ? mapData.height : 100;
-    const pad = 30;
-    const area = CANVAS_PX - pad * 2;
-    const mx = ((cx - pad) / area) * w;
-    const my = ((CANVAS_PX - pad - cy) / area) * h;
-    return [Math.round(mx * 10) / 10, Math.round(my * 10) / 10];
+    const v = view();
+    return [(cx - v.left) / v.scale, (v.bottom - cy) / v.scale];
+}
+
+// Grid step: 1, 2 or 5 x 10^k, about 10 cells along the longer side.
+function gridStep(size) {
+    const raw = size / 10;
+    const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+    for (const m of [1, 2, 5]) if (m * pow >= raw) return m * pow;
+    return 10 * pow;
 }
 
 function render() {
-    ctx.clearRect(0, 0, CANVAS_PX, CANVAS_PX);
+    ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
+    const { w, h, scale } = view();
 
-    // grid
-    ctx.strokeStyle = "rgba(255,255,255,0.04)";
+    if (!mapData) {
+        ctx.fillStyle = "rgba(255,255,255,0.5)";
+        ctx.font = "14px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Map not loaded yet (navigation server is calibrating?)",
+                     CANVAS_W / 2, CANVAS_H / 2);
+        ctx.textAlign = "left";
+    }
+
+    // grid with labels in map units
+    const step = gridStep(Math.max(w, h));
     ctx.lineWidth = 1;
-    const step = 10;
-    const w = mapData ? mapData.width : 100;
-    const h = mapData ? mapData.height : 100;
+    ctx.font = "10px sans-serif";
     for (let i = 0; i <= w; i += step) {
         const [x1, y1] = toCanvas(i, 0);
         const [x2, y2] = toCanvas(i, h);
+        ctx.strokeStyle = "rgba(255,255,255,0.06)";
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.fillText(String(i), x1 - 6, y1 + 14);
     }
     for (let j = 0; j <= h; j += step) {
         const [x1, y1] = toCanvas(0, j);
         const [x2, y2] = toCanvas(w, j);
+        ctx.strokeStyle = "rgba(255,255,255,0.06)";
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        ctx.fillText(String(j), x1 - 26, y1 + 3);
     }
+
+    // field border
+    const [fx, fy] = toCanvas(0, h);
+    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+    ctx.strokeRect(fx, fy, w * scale, h * scale);
 
     // reference markers
     if (mapData && mapData.reference_markers) {
@@ -115,7 +153,7 @@ function render() {
                 ctx.strokeRect(ox, oy, rw, rh);
             } else if (ob.type === "circle") {
                 const [cx, cy] = toCanvas(ob.x, ob.y);
-                const rPx = (ob.radius / w) * (CANVAS_PX - 60);
+                const rPx = ob.radius * scale;
                 ctx.beginPath(); ctx.arc(cx, cy, rPx, 0, Math.PI * 2);
                 ctx.fill(); ctx.stroke();
             }
@@ -214,18 +252,18 @@ function drawActiveMission() {
 // ---------------------------------------------------------------------------
 
 canvas.addEventListener("click", (e) => {
+    // Waypoints need the map units: none until the map is loaded.
+    if (!mapData) return;
     const rect = canvas.getBoundingClientRect();
-    const scaleX = CANVAS_PX / rect.width;
-    const scaleY = CANVAS_PX / rect.height;
-    const cx = (e.clientX - rect.left) * scaleX;
-    const cy = (e.clientY - rect.top) * scaleY;
+    const cx = (e.clientX - rect.left) * (CANVAS_W / rect.width);
+    const cy = (e.clientY - rect.top) * (CANVAS_H / rect.height);
     const [mx, my] = fromCanvas(cx, cy);
 
-    const w = mapData ? mapData.width : 100;
-    const h = mapData ? mapData.height : 100;
+    const [w, h] = mapSize();
     if (mx < 0 || mx > w || my < 0 || my > h) return;
 
-    waypoints.push({ x: mx, y: my, action: "none", params: {} });
+    const round1 = (v) => Math.round(v * 10) / 10;
+    waypoints.push({ x: round1(mx), y: round1(my), action: "none", params: {} });
     render();
     updateWaypointList();
 });

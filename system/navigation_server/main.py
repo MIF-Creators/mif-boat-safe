@@ -21,6 +21,11 @@ from system.navigation_server.camera import CameraManager
 import cv2
 from system.navigation_server.aruco_detector import ArucoDetector
 from system.navigation_server.coordinate_system import CoordinateSystem
+from system.navigation_server.field_calibration import (
+    CalibrationError,
+    FieldCalibrator,
+    log_calibration,
+)
 from system.navigation_server.mqtt_client import NavMqttClient
 from system.navigation_server.map_provider import MapProvider
 
@@ -59,10 +64,13 @@ def main():
         reference_ids=cfg.reference_marker_ids,
         mobile_ids=cfg.mobile_marker_ids,
     )
-    coord = CoordinateSystem(
+    calibrator = FieldCalibrator(
+        marker_size_cm=cfg.reference_marker_size_cm,
         map_width=cfg.map_width,
         map_height=cfg.map_height,
     )
+    # Created when the field calibration finishes; no positions before that.
+    coord: CoordinateSystem | None = None
     map_provider = MapProvider(cfg)
 
     mqtt = NavMqttClient(cfg, on_map_request=lambda: map_provider.publish_map(mqtt))
@@ -70,6 +78,10 @@ def main():
 
     frame_interval = 1.0 / cfg.publish_rate_hz
     log.info("Publishing positions at %d Hz", cfg.publish_rate_hz)
+    log.info(
+        "Calibrating the field: waiting for %d frames with all reference markers",
+        calibrator.frames_required,
+    )
     if cfg.show_video_preview:
         log.info(
             "Video preview ON (window: %r, press Q to quit)", cfg.preview_window_title
@@ -97,12 +109,25 @@ def main():
             corners, ids, _ = detector.detect(gray)
 
             ref_markers = detector.filter_reference_markers(corners, ids)
-            if ref_markers is not None:
-                if not coord.is_calibrated:
-                    if coord.calibrate(ref_markers):
-                        log.info("Coordinate system calibrated")
+            if coord is None:
+                ref_corners = detector.get_reference_corners(corners, ids)
+                if ref_corners is not None:
+                    try:
+                        field = calibrator.add_frame(ref_corners)
+                    except CalibrationError as e:
+                        log.error("Field calibration failed, starting over: %s", e)
+                        field = None
+                    if field is not None:
+                        log_calibration(field, log)
+                        coord = CoordinateSystem(
+                            map_width=field.width, map_height=field.height
+                        )
+                        coord.calibrate(field.centers)
+                        map_provider.set_field(field.width, field.height)
+                        # Answers map requests that came during calibration.
+                        map_provider.publish_map(mqtt)
 
-            if coord.is_calibrated:
+            if coord is not None and coord.is_calibrated:
                 mobiles = detector.get_mobile_markers(corners, ids)
 
                 all_positions: dict[int, dict] = {}

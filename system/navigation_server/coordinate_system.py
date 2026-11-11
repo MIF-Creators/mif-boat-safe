@@ -1,6 +1,7 @@
 """Perspective-transform coordinate system based on 4 reference ArUco markers.
 
-Transforms pixel coordinates into a logical polygon space (default 0-100 x 0-100).
+Transforms pixel coordinates into the map space 0..map_width x 0..map_height
+(the size comes from the field calibration, see ``field_calibration.py``).
 Maintains per-vehicle smoothing state.
 """
 
@@ -9,14 +10,17 @@ import cv2
 import numpy as np
 
 
-class CoordinateSystem:
-    TARGET_COORDS = {
+def field_targets(width: float, height: float) -> dict[int, tuple[float, float]]:
+    """Map position of each reference marker centre for a field of this size."""
+    return {
         1: (0, 0),
-        2: (0, 100),
-        3: (100, 100),
-        4: (100, 0),
+        2: (0, height),
+        3: (width, height),
+        4: (width, 0),
     }
 
+
+class CoordinateSystem:
     def __init__(
         self, map_width: int = 100, map_height: int = 100, smoothing_factor: float = 0.7
     ):
@@ -41,9 +45,8 @@ class CoordinateSystem:
                 return False
 
         src = np.array([marker_centers[mid] for mid in [1, 2, 3, 4]], dtype=np.float32)
-        dst = np.array(
-            [self.TARGET_COORDS[mid] for mid in [1, 2, 3, 4]], dtype=np.float32
-        )
+        targets = field_targets(self.map_width, self.map_height)
+        dst = np.array([targets[mid] for mid in [1, 2, 3, 4]], dtype=np.float32)
         self.transform_matrix = cv2.getPerspectiveTransform(src, dst)
         self.is_calibrated = True
         return True

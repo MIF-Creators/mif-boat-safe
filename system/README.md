@@ -143,6 +143,38 @@ Each component reads settings from a `.env` file next to that component’s `mai
 
 **Video preview window:** with `SHOW_VIDEO_PREVIEW=1` (default), a window opens showing the stream with ArUco overlays; press **Q** to stop the server. Set `SHOW_VIDEO_PREVIEW=0` on machines without a display.
 
+## Field calibration
+
+The navigation server measures the field itself, no tape measure needed. At
+startup it collects 30 frames in which all 4 reference markers are visible
+and only then starts publishing positions and answers map requests.
+
+How it works: the reference markers are squares of the same size. The
+perspective transform from their centres is known only up to the field
+size; the size follows from the requirement that every marker is a square
+again on the map (equal sides, right angle). This gives the aspect ratio
+of the field, and `REFERENCE_MARKER_SIZE_CM` gives the scale.
+
+The map is then in centimetres: (0, 0) is the centre of marker 1, X runs
+towards marker 4, Y towards marker 2; markers 2, 3, 4 are at (0, H), (W, H),
+(W, 0). `MAP_OBSTACLES` and the vehicle's `POSITION_TOLERANCE` use the same
+units. Without `REFERENCE_MARKER_SIZE_CM` the map is unitless (width 100);
+with both `MAP_WIDTH` and `MAP_HEIGHT` set, they are used instead of the
+measurement.
+
+Conditions:
+
+- markers 1-4 lie at the corners of a rectangle, flat on the floor the
+  vehicles drive on, all of the same printed size;
+- `REFERENCE_MARKER_SIZE_CM` is measured along the outer black border;
+- markers at least ~20 px in the image (about 24 px for a 4 m field in a
+  1280 px frame); the camera and markers do not move after the start —
+  restart the server if they do.
+
+The log shows the field size, the aspect ratio, the spread between the
+per-marker estimates and the marker size in pixels. A spread above 5% means
+the field is probably not a rectangle or the markers differ in size.
+
 ## Adding More Vehicles
 
 1. Place a new ArUco marker (e.g., ID 5) on the vehicle.

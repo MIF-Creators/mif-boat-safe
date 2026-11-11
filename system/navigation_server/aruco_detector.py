@@ -24,6 +24,8 @@ class ArucoDetector:
         params.maxMarkerPerimeterRate = 4.0
         params.polygonalApproxAccuracyRate = 0.03
         params.minCornerDistanceRate = 0.05
+        # Sub-pixel corners: the field calibration measures marker shapes.
+        params.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
         self.detector = cv2.aruco.ArucoDetector(aruco_dict, params)
 
     def detect(self, gray: np.ndarray):
@@ -45,6 +47,16 @@ class ArucoDetector:
         for i, mid in enumerate(ids.flatten()):
             if int(mid) in self.reference_ids:
                 result[int(mid)] = self.marker_center(corners[i])
+        return result if len(result) == len(self.reference_ids) else None
+
+    def get_reference_corners(self, corners, ids) -> dict | None:
+        """Return {marker_id: 4x2 corner pixels} for all reference markers, or None."""
+        if ids is None:
+            return None
+        result: dict[int, np.ndarray] = {}
+        for i, mid in enumerate(ids.flatten()):
+            if int(mid) in self.reference_ids:
+                result[int(mid)] = corners[i].reshape(4, 2).astype(np.float64)
         return result if len(result) == len(self.reference_ids) else None
 
     def get_mobile_markers(self, corners, ids) -> dict:

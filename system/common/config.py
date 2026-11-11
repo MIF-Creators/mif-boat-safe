@@ -43,6 +43,18 @@ def _csv_int_list(raw: str) -> list[int]:
     return [int(v.strip()) for v in raw.split(",") if v.strip()]
 
 
+def _optional_int(name: str) -> int | None:
+    """Integer from the environment; ``None`` when unset or empty."""
+    raw = os.getenv(name, "").strip()
+    return int(raw) if raw else None
+
+
+def _optional_float(name: str) -> float | None:
+    """Float from the environment; ``None`` when unset or empty."""
+    raw = os.getenv(name, "").strip()
+    return float(raw) if raw else None
+
+
 # ---------------------------------------------------------------------------
 # Config dataclasses
 # ---------------------------------------------------------------------------
@@ -82,8 +94,13 @@ class NavigationServerConfig(MqttConfig):
     camera_focus: float | None = None  # manual focus value (V4L2 only)
     reference_marker_ids: list[int] = field(default_factory=lambda: [1, 2, 3, 4])
     mobile_marker_ids: list[int] = field(default_factory=lambda: [0])
-    map_width: int = 100
-    map_height: int = 100
+    # Side of a reference marker along its outer black border, cm. Sets the
+    # map units to centimetres; None = unitless map (width 100).
+    reference_marker_size_cm: float | None = None
+    # Field size in map units. None = measured by the field calibration;
+    # both set = used as is, the measurement is only logged.
+    map_width: int | None = None
+    map_height: int | None = None
     map_obstacles: list[dict] = field(default_factory=list)
     publish_rate_hz: int = 15
     show_video_preview: bool = True
@@ -123,8 +140,9 @@ class NavigationServerConfig(MqttConfig):
                 os.getenv("REFERENCE_MARKER_IDS", "1,2,3,4")
             ),
             mobile_marker_ids=_csv_int_list(os.getenv("MOBILE_MARKER_IDS", "0")),
-            map_width=int(os.getenv("MAP_WIDTH", "100")),
-            map_height=int(os.getenv("MAP_HEIGHT", "100")),
+            reference_marker_size_cm=_optional_float("REFERENCE_MARKER_SIZE_CM"),
+            map_width=_optional_int("MAP_WIDTH"),
+            map_height=_optional_int("MAP_HEIGHT"),
             map_obstacles=obstacles,
             publish_rate_hz=int(os.getenv("PUBLISH_RATE_HZ", "15")),
             show_video_preview=show_video_preview,
