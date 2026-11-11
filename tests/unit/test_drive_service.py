@@ -1,3 +1,5 @@
+import threading
+
 from system.vehicle.services.drive_service import DriveService
 from tests.unit.fakes import FakeClock
 
@@ -100,3 +102,29 @@ def test_moves_again_after_new_command_following_timeout():
 
     # Assert
     assert applied_commands[-1] == "left"
+
+
+def test_started_service_applies_commands_from_its_own_thread():
+    # Arrange
+    service, _, applied_commands = _create_service()
+    forward_applied = threading.Event()
+
+    def execute(command):
+        applied_commands.append(command)
+        if command == "forward":
+            forward_applied.set()
+
+    service._execute = execute
+
+    # Act
+    service.start()
+    try:
+        service.send_command("forward")
+        was_applied = forward_applied.wait(timeout=0.5)
+        is_alive = service._thread.is_alive()
+    finally:
+        service.stop()
+
+    # Assert
+    assert was_applied
+    assert is_alive
